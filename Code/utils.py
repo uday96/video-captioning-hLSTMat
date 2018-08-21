@@ -45,7 +45,22 @@ def write_list_to_file(fname,data_list):
 		file.write(data+"\n")
 	file.close()
 
-
 def shuffle_array(array):
 	set_rngs()
 	return np.random.shuffle(array)
+
+def generate_minibatch_idx(dataset_size, minibatch_size):
+    # generate idx for minibatches SGD
+    # output [m1, m2, m3, ..., mk] where mk is a list of indices
+    assert dataset_size >= minibatch_size
+    n_minibatches = dataset_size / minibatch_size
+    leftover = dataset_size % minibatch_size
+    idx = range(dataset_size)
+    if leftover == 0:
+        minibatch_idx = np.split(np.asarray(idx), n_minibatches)
+    else:
+        print('uneven minibatch chunking, overall %d, last one %d'%(minibatch_size, leftover))
+        minibatch_idx = np.split(np.asarray(idx)[:-leftover], n_minibatches)
+        minibatch_idx = minibatch_idx + [np.asarray(idx[-leftover:])]
+    minibatch_idx = [idx_.tolist() for idx_ in minibatch_idx]
+    return minibatch_idx

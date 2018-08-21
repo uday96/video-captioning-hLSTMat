@@ -1,28 +1,7 @@
 import string
+import numpy as np
 from nltk.tokenize import WordPunctTokenizer
-import utils
-
-DATA_DIR = "../Data/MSVD/"
-MSVD_CSV_DATA_PATH = "../Data/MSVD/MSVD_corpus.csv"
-MSVD_PREPROC_CSV_DATA_PATH = "../Data/MSVD/processed_MSVD_corpus.csv"
-MSVD_VIDEO_DATA_PATH = "../Data/MSVD/YouTubeClips/"
-MSVD_OMMITTED_CAPS_PATH = "../Data/MSVD/MSVD_omitted_caps.txt"
-MSVD_FINAL_CORPUS_PATH = "../Data/MSVD/MSVD_final_corpus.csv"
-MSVD_VOCAB_PATH = '../Data/MSVD/MSVD_vocab.json'
-MSVD_VID_CAPS_TRAIN_PATH = '../Data/MSVD/MSVD_vid_caps_train.json'
-MSVD_VID_CAPS_VAL_PATH = '../Data/MSVD/MSVD_vid_caps_val.json'
-MSVD_VID_CAPS_TEST_PATH = '../Data/MSVD/MSVD_vid_caps_test.json'
-TOTAL_VIDS = 1970
-TRAIN_VIDS = 1200
-TEST_VIDS = 670
-VAL_VIDS = 100
-MSVD_FINAL_CORPUS_TRAIN_PATH = "../Data/MSVD/MSVD_final_corpus_train.csv"
-MSVD_FINAL_CORPUS_VAL_PATH = "../Data/MSVD/MSVD_final_corpus_val.csv"
-MSVD_FINAL_CORPUS_TEST_PATH = "../Data/MSVD/MSVD_final_corpus_test.csv"
-MSVD_VID_IDS_ALL_PATH = "../Data/MSVD/present_vid_ids.txt"
-MSVD_VID_IDS_TRAIN_PATH = "../Data/MSVD/vid_ids_train.txt"
-MSVD_VID_IDS_VAL_PATH = "../Data/MSVD/vid_ids_val.txt"
-MSVD_VID_IDS_TEST_PATH = "../Data/MSVD/vid_ids_test.txt"
+import utils, config
 
 def preproc_csv(fname,outfname):
 	csv_data = utils.read_csv_data(fname)
@@ -46,9 +25,9 @@ def filter_clips(csv_data,vid_clips_list):
 			if fname not in mf:
 				mf.append(fname)
 				tl += 1
-	utils.write_list_to_file(DATA_DIR+"present_vid_ids.txt",pf)
-	utils.write_list_to_file(DATA_DIR+"missing_vid_ids.txt",mf)
-	utils.write_list_to_file(DATA_DIR+"present_csv_vid_ids.txt",pvids)
+	utils.write_list_to_file(config.DATA_DIR+"present_vid_ids.txt",pf)
+	utils.write_list_to_file(config.DATA_DIR+"missing_vid_ids.txt",mf)
+	utils.write_list_to_file(config.DATA_DIR+"present_csv_vid_ids.txt",pvids)
 	print("Present : {}".format(len(pf)))
 	print("Missing : {}".format(len(mf)))
 	print("Total (from CSV): {}".format(tl))
@@ -96,8 +75,8 @@ def clean_caps_df(csv_data,present_vid_ids,present_vid_ids_csv):
 	vid_list = list(set([get_vid_ids(s) for s in present_vid_ids]))
 	assert len(vid_list)==len(present_vid_ids_csv)
 	df = csv_data.loc[((csv_data['VideoID'].isin(vid_list)) & (csv_data['Language'] == 'English')) & csv_data['Description'].notnull() ]
-	df.to_csv(MSVD_FINAL_CORPUS_PATH, index=False, encoding='utf-8')
-	df = utils.read_csv_data(MSVD_FINAL_CORPUS_PATH)
+	df.to_csv(config.MSVD_FINAL_CORPUS_PATH, index=False, encoding='utf-8')
+	df = utils.read_csv_data(config.MSVD_FINAL_CORPUS_PATH)
 	omitted_caps = []
 	punct_dict = get_punctuations()
 	translator = string.maketrans("","")
@@ -112,27 +91,27 @@ def clean_caps_df(csv_data,present_vid_ids,present_vid_ids_csv):
 	# 		omitted_caps.append(row['Description'])
 	# 		row['Description'] = None
 	df = df.loc[df['Description'].notnull()]
-	df.to_csv(MSVD_FINAL_CORPUS_PATH, index=False, encoding='utf-8')
+	df.to_csv(config.MSVD_FINAL_CORPUS_PATH, index=False, encoding='utf-8')
 	print("Non-ASCII captions omitted :"+str(len(omitted_caps)))
-	utils.write_list_to_file(MSVD_OMMITTED_CAPS_PATH,omitted_caps)
+	utils.write_list_to_file(config.MSVD_OMMITTED_CAPS_PATH,omitted_caps)
 	return df
 
 def gen_vocab(df,whichdata):
 	if whichdata == "test":
-		outfname = MSVD_VID_CAPS_TEST_PATH
-		dictsize = TEST_VIDS
+		outfname = config.MSVD_VID_CAPS_TEST_PATH
+		dictsize = config.TEST_VIDS
 	elif whichdata == "val":
-		outfname = MSVD_VID_CAPS_VAL_PATH
-		dictsize = VAL_VIDS
+		outfname = config.MSVD_VID_CAPS_VAL_PATH
+		dictsize = config.VAL_VIDS
 	else:
-		outfname = MSVD_VID_CAPS_TRAIN_PATH
-		dictsize = TRAIN_VIDS
+		outfname = config.MSVD_VID_CAPS_TRAIN_PATH
+		dictsize = config.TRAIN_VIDS
 	vocab = set()
 	punct_dict = get_punctuations()
 	translator = string.maketrans("","")
 	vid_caps_dict = {}
 	for index, row in df.iterrows():
-		vid_id = str(row["VideoID"])+"_"+str(row["Start"])+"_"+str(row["End"])+".avi"
+		vid_id = str(row["VideoID"])+"_"+str(row["Start"])+"_"+str(row["End"])
 		tokens, _ = tokenize(row["Description"],punct_dict,translator)
 		if(vid_id in vid_caps_dict):
 			vid_caps_dict[vid_id].append(tokens)
@@ -144,7 +123,18 @@ def gen_vocab(df,whichdata):
 	print("Size of "+whichdata+" vid caps dict: "+str(len(vid_caps_dict)))
 	assert len(vid_caps_dict)==dictsize
 	if whichdata=="train":
-		utils.write_to_json(dict.fromkeys(vocab, 0),MSVD_VOCAB_PATH)
+		vocab_list = list(vocab)
+		vocab_list.sort()
+		vocab_dict = {vocab_list[index]:index+3 for index in range(len(vocab_list))}
+		vocab_dict['<bos>'] = 0
+		vocab_dict['<eos>'] = 1
+		vocab_dict['UNK'] = 2
+		vocab_rev_dict = {index+3:vocab_list[index] for index in range(len(vocab_list))}
+		vocab_rev_dict[0] = '<bos>'
+		vocab_rev_dict[1] = '<eos>'
+		vocab_rev_dict[2] = 'UNK'
+		utils.write_to_json(vocab_dict,config.MSVD_VOCAB_PATH)
+		utils.write_to_json(vocab_rev_dict,config.MSVD_REVERSE_VOCAB_PATH)
 		print("Size of Vocabulary: "+str(len(vocab)))
 	return vocab, vid_caps_dict
 
@@ -160,41 +150,72 @@ def filter_df(csv_data,vid_ids,outfname):
 	return df
 
 def split_data(csv_data):
-	vid_ids = utils.read_file_to_list(MSVD_VID_IDS_ALL_PATH)
-	assert len(vid_ids)==TOTAL_VIDS
+	vid_ids = utils.read_file_to_list(config.MSVD_VID_IDS_ALL_PATH)
+	assert len(vid_ids)==config.TOTAL_VIDS
 	utils.shuffle_array(vid_ids)
 	train_ids = vid_ids[0:1200]
 	val_ids = vid_ids[1200:1300]
 	test_ids = vid_ids[1300:1970]
-	assert len(train_ids)==TRAIN_VIDS
-	assert len(val_ids)==VAL_VIDS
-	assert len(test_ids)==TEST_VIDS
-	utils.write_list_to_file(MSVD_VID_IDS_TRAIN_PATH,train_ids)
-	utils.write_list_to_file(MSVD_VID_IDS_VAL_PATH,val_ids)
-	utils.write_list_to_file(MSVD_VID_IDS_TEST_PATH,test_ids)
-	train_df = filter_df(csv_data,train_ids,MSVD_FINAL_CORPUS_TRAIN_PATH)
-	val_df = filter_df(csv_data,val_ids,MSVD_FINAL_CORPUS_VAL_PATH)
-	test_df = filter_df(csv_data,test_ids,MSVD_FINAL_CORPUS_TEST_PATH)
+	assert len(train_ids)==config.TRAIN_VIDS
+	assert len(val_ids)==config.VAL_VIDS
+	assert len(test_ids)==config.TEST_VIDS
+	utils.write_list_to_file(config.MSVD_VID_IDS_TRAIN_PATH,train_ids)
+	utils.write_list_to_file(config.MSVD_VID_IDS_VAL_PATH,val_ids)
+	utils.write_list_to_file(config.MSVD_VID_IDS_TEST_PATH,test_ids)
+	train_df = filter_df(csv_data,train_ids,config.MSVD_FINAL_CORPUS_TRAIN_PATH)
+	val_df = filter_df(csv_data,val_ids,config.MSVD_FINAL_CORPUS_VAL_PATH)
+	test_df = filter_df(csv_data,test_ids,config.MSVD_FINAL_CORPUS_TEST_PATH)
 	return train_df, val_df, test_df
+
+def save_diff_files(vid_feats_path, feat_save_path):
+	vid_feats = np.load(vid_feats_path)
+	for feat in vid_feats[()].items():
+		vid_id = feat[0]	#video ID
+		vid_ctx = feat[1]	#video feature (28,2048) for resnet
+		np.save(feat_save_path+vid_id+".npy",vid_ctx)
+
+def prepare_data_ids(vid_caps_path, ids_save_path):
+	vid_caps_dict = utils.read_from_json(vid_caps_path)
+	data_ids = []
+	for vid_caps in vid_caps_dict.items():
+		vid_id = vid_caps[0]
+		if vid_id[-4:]==".avi":
+			vid_id = vid_id[:-4]
+		for seq_id in range(len(vid_caps[1])):
+			data_id = vid_id+"|"+str(seq_id)
+			data_ids.append(data_id)
+	utils.write_list_to_file(ids_save_path,data_ids)
 
 if __name__ == '__main__':
 	print("removing empty lines in original corpus...")
-	preproc_csv(MSVD_CSV_DATA_PATH,MSVD_PREPROC_CSV_DATA_PATH)
+	preproc_csv(config.MSVD_CSV_DATA_PATH,config.MSVD_PREPROC_CSV_DATA_PATH)
 	print("loading proccessed corpus...")
-	csv_data = utils.read_csv_data(MSVD_PREPROC_CSV_DATA_PATH)
+	csv_data = utils.read_csv_data(config.MSVD_PREPROC_CSV_DATA_PATH)
 	print("reading video clips ids...")
-	vid_ids_list = utils.read_dir_files(MSVD_VIDEO_DATA_PATH)
-	assert len(vid_ids_list)==TOTAL_VIDS
+	vid_ids_list = utils.read_dir_files(config.MSVD_VIDEO_DATA_PATH)
+	assert len(vid_ids_list)==config.TOTAL_VIDS
 	print("filtering clips in df...")
 	present_vid_ids, missing_vid_ids, present_vid_ids_csv = filter_clips(csv_data,vid_ids_list)
-	assert len(present_vid_ids)==TOTAL_VIDS
+	assert len(present_vid_ids)==config.TOTAL_VIDS
 	print("saving filtered df...")
 	df = clean_caps_df(csv_data,present_vid_ids,present_vid_ids_csv)
 	print("loading final corpus...")
-	csv_data = utils.read_csv_data(MSVD_FINAL_CORPUS_PATH)
+	csv_data = utils.read_csv_data(config.MSVD_FINAL_CORPUS_PATH)
 	print("splitting corpus into train-val-test...")
 	train_df, val_df, test_df = split_data(csv_data)
 	print("generating vocab for train data...")
 	vocab, _ = gen_vocab(train_df,"train")
 	_, _ = gen_vocab(val_df,"val")
 	_, _ = gen_vocab(test_df,"test")
+	print("saving train data resnet features as seperate files...")
+	save_diff_files(config.MSVD_FRAMES_FEATS_TRAIN_PATH, config.MSVD_FEATS_RESNET_DIR)
+	print("saving val data resnet features as seperate files...")
+	save_diff_files(config.MSVD_FRAMES_FEATS_VAL_PATH, config.MSVD_FEATS_RESNET_DIR)
+	print("saving test data resnet features as seperate files...")
+	save_diff_files(config.MSVD_FRAMES_FEATS_TEST_PATH, config.MSVD_FEATS_RESNET_DIR)
+	print("generating train data vid+seq ids...")
+	prepare_data_ids(config.MSVD_VID_CAPS_TRAIN_PATH, config.MSVD_DATA_IDS_TRAIN_PATH)
+	print("generating val data vid+seq ids...")
+	prepare_data_ids(config.MSVD_VID_CAPS_VAL_PATH, config.MSVD_DATA_IDS_VAL_PATH)
+	print("generating test data vid+seq ids...")
+	prepare_data_ids(config.MSVD_VID_CAPS_TEST_PATH, config.MSVD_DATA_IDS_TEST_PATH)
