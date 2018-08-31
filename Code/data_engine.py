@@ -75,7 +75,7 @@ class Movie2Caption(object):
         self.kf_val = utils.generate_minibatch_idx(len(self.val_data_ids), self.mb_size_test)   #TODO - verify test or val
         self.kf_test = utils.generate_minibatch_idx(len(self.test_data_ids), self.mb_size_test)
         
-def prepare_data(engine, IDs, mode):
+def prepare_data(engine, IDs, mode="train"):
     seqs = []
     feat_list = []
     for i, ID in enumerate(IDs):
@@ -148,5 +148,3 @@ def test_data_engine():
 
 if __name__ == '__main__':
     test_data_engine()
-
-
