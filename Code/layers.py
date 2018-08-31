@@ -26,14 +26,12 @@ class Layers(object):
         if nout == None:
             nout = options['lstm_dim']
         params[_p(prefix, 'W')] = norm_weight(nin, nout, scale=0.01)
-        # tfparams[_p(prefix, 'W')] = tf.placeholder(tf.float32, shape=(nin,nout), name=_p(prefix, 'W'))
         params[_p(prefix, 'b')] = np.zeros((nout,)).astype('float32')
-        # tfparams[_p(prefix, 'b')] = tf.placeholder(tf.float32, shape=(nout,), name=_p(prefix, 'b'))
         return params
 
     def fflayer(self, tfparams, state_below, options, 
                 prefix='rconv', activ='lambda x: tf.tanh(x)', **kwargs):
-        return eval(activ)(tf.matmul(state_below, tfparams[_p(prefix, 'W')]) + tfparams[_p(prefix, 'b')])
+        return eval(activ)(batch_matmul(state_below, tfparams[_p(prefix, 'W')]) + tfparams[_p(prefix, 'b')])
 
     # LSTM layer
     def param_init_lstm(self, params, nin, dim, prefix='lstm'):
@@ -44,15 +42,12 @@ class Layers(object):
                                norm_weight(nin, dim),
                                norm_weight(nin, dim)], axis=1)
         params[_p(prefix, 'W')] = W     # to_lstm_W:(512,2048)
-        # tfparams[_p(prefix, 'W')] = tf.placeholder(tf.float32, shape=(W.shape[0],W.shape[1]), name=_p(prefix, 'W'))
         U = np.concatenate([ortho_weight(dim),
                                ortho_weight(dim),
                                ortho_weight(dim),
                                ortho_weight(dim)], axis=1)
         params[_p(prefix, 'U')] = U     # to_lstm_U:(512,2048)
-        # tfparams[_p(prefix, 'U')] = tf.placeholder(tf.float32, shape=(U.shape[0],U.shape[1]), name=_p(prefix, 'U'))
         params[_p(prefix, 'b')] = np.zeros((4 * dim,)).astype('float32')    # to_lstm_b:(2048,)
-        # tfparams[_p(prefix, 'b')] = tf.placeholder(tf.float32, shape=(4 * dim,), name=_p(prefix, 'b'))
         return params
 
     # This function implements the lstm fprop
@@ -97,9 +92,9 @@ class Layers(object):
 
         def step(prev, elems):
             m_, x_ = elems
-            h_, c_ = tf.unstack(prev)
+            h_, c_ = prev
             preact = tf.matmul(h_, U)   # (64,512)*(512,2048) = (64,2048)
-            preact += x_
+            preact = preact + x_
             i = tf.sigmoid(_slice(preact, 0, dim))  # (64,512)
             f = tf.sigmoid(_slice(preact, 1, dim))  # (64,512)
             o = tf.sigmoid(_slice(preact, 2, dim))  # (64,512)
@@ -113,7 +108,7 @@ class Layers(object):
             else:
                 h = m_[:, None] * h + (1. - m_)[:, None] * h_
                 c = m_[:, None] * c + (1. - m_)[:, None] * c_
-            return tf.stack([h, c])
+            return [h, c]
 
         state_below = batch_matmul(state_below, tfparams[_p(prefix, 'W')]) + b  # (19,64,512)*(512,2048)+(2048,) = (19,64,2048)
 
@@ -122,7 +117,7 @@ class Layers(object):
             raise NotImplementedError()
         states = tf.scan(step, 
                 (mask,state_below),
-                initializer=tf.stack([init_state,init_memory]),
+                initializer=[init_state,init_memory],
                 name=_p(prefix, '_layers'))
         return states    
 
@@ -226,6 +221,10 @@ class Layers(object):
             raise NotImplementedError()
         U = tfparams[_p(prefix, 'U')]    # (512,2048)
 
+        init_alpha = tf.constant(0.,shape=(n_samples, pctx_.shape[1]), dtype=tf.float32)
+        init_ctx = tf.constant(0.,shape=(n_samples, U.shape[1]), dtype=tf.float32)
+        init_beta = tf.constant(0.,shape=(n_samples, ), dtype=tf.float32)
+
         def _slice(_x, n, dim):
             if _x.shape.ndims == 3:
                 return _x[:, :, n * dim:(n + 1) * dim]
@@ -234,9 +233,9 @@ class Layers(object):
         def step(prev, elems):
             # gather previous internal state and output state
             m_, x_ = elems
-            h_, c_ = tf.unstack(prev)
+            h_, c_, _, _, _ = prev
             preact = tf.matmul(h_, U)   # (64,512)*(512,2048) = (64,2048)
-            preact += x_
+            preact = preact + x_
             i = _slice(preact, 0, dim)  # (64,512)  (0-511)
             f = _slice(preact, 1, dim)  # (64,512)  (512,1023)
             o = _slice(preact, 2, dim)  # (64,512)  (1024-1535)
@@ -250,13 +249,27 @@ class Layers(object):
             c = m_[:, None] * c + (1. - m_)[:, None] * c_
             h = o * tf.tanh(c)
             h = m_[:, None] * h + (1. - m_)[:, None] * h_
-            return tf.stack([h, c])
+            # attention
+            pstate_ = tf.matmul(h, Wd_att) # shape = (64,512)*(512,2048) = (64,2048)
+            pctx_t = pctx_ + pstate_[:, None, :] # shape = (64,28,2048)+(64,?,2048) = (64,28,2048)  # DOUBT pctx_ += ??
+            pctx_t = tanh(pctx_t)
+            alpha = batch_matmul(pctx_t, U_att) + c_att    # (64,28,2048)*(2048,1) + (1,) = (64,28,1)
+            alpha_pre = alpha
+            alpha_shp = alpha.shape
+            alpha = tf.nn.softmax(tf.reshape(alpha,[alpha_shp[0], alpha_shp[1]]))  # softmax # shape (64,28)
+            ctx_ = tf.reduce_sum((context * alpha[:, :, None]), 1)  # (m, ctx_dim)     # (64*28*2048)*(64,28,1).sum(1) = (64,2048)
+            if options['selector']:
+                sel_ = tf.sigmoid(tf.matmul(h_, W_sel) + b_sel)   # (64,512)*(512,1)+(scalar) = (64,1) 
+                sel_ = tf.reshape(sel_,[sel_.shape[0]])    # (64,)
+                ctx_ = sel_[:, None] * ctx_     # (64,1)*(64,2048) = (64,2048)
+            rval = [h, c, alpha, ctx_, sel_]
+            return rval
 
-        states = tf.scan(step, 
+        updates = tf.scan(step, 
                     (mask,state_below),
-                    initializer=tf.stack([init_state,init_memory]),
+                    initializer=[init_state, init_memory, init_alpha, init_ctx, init_beta],
                     name=_p(prefix, '_layers'))
-        return states
+        return updates
 
     def create_get_lstm_cell(prefix, is_training=True, rnn_mode="basic"):
         if rnn_mode == "basic":

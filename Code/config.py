@@ -65,6 +65,7 @@ params = {
     'use_dropout' : False,
     'selector':True,
     'ctx2out':True,
+    'prev2out':True,
 }
 
 # params = {

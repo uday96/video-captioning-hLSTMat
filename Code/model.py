@@ -57,9 +57,35 @@ class Model(object):
                                                         init_state=init_state,
                                                         init_memory=init_memory,
                                                         use_noise=use_noise)
-        bo_lstm_h = bo_lstm[:,0,:,:]
-        to_lstm = self.layers.get_layer('lstm')[1](tfparams, bo_lstm_h,
+        to_lstm = self.layers.get_layer('lstm')[1](tfparams, bo_lstm[0],
                                                    mask=mask,
                                                    one_step=False,
                                                    prefix='to_lstm')
-        return init_state, init_memory, bo_lstm, to_lstm
+        bo_lstm_h = bo_lstm[0]  # (t,64,512)
+        to_lstm_h = to_lstm[0]  # (t,64,512)
+        alphas = bo_lstm[2]
+        ctxs = bo_lstm[3]
+        betas = bo_lstm[4]
+        if options['use_dropout']:
+            # bo_lstm_h = self.layers.dropout_layer(bo_lstm_h, use_noise, trng)
+            # to_lstm_h = self.layers.dropout_layer(to_lstm_h, use_noise, trng)
+            raise NotImplementedError()
+        # compute word probabilities
+        logit = self.layers.get_layer('ff')[1](tfparams, bo_lstm_h, options, prefix='ff_logit_bo', activ='linear')  # (t,64,512)*(512,512) = (t,64,512)
+        if options['prev2out']:
+            logit += inputs
+        if options['ctx2out']:
+            to_lstm_h *= (1-betas[:, :, None])  # (t,64,512)*(t,64,1)
+            ctxs_beta = self.layers.get_layer('ff')[1](tfparams, ctxs, options, prefix='ff_logit_ctx', activ='linear')  # (t,64,2048)*(2048,512) = (t,64,512)
+            ctxs_beta += self.layers.get_layer('ff')[1](tfparams, to_lstm_h, options, prefix='ff_logit_to', activ='linear') # (t,64,512)+((t,64,512)*(512,512)) = (t,64,512)
+            logit += ctxs_beta
+        logit = utils.tanh(logit)   # (t,64,512)
+        if options['use_dropout']:
+            # logit = self.layers.dropout_layer(logit, use_noise, trng)
+            raise NotImplementedError()
+        # (t,m,n_words)
+        logit = self.layers.get_layer('ff')[1](tfparams, logit, options, prefix='ff_logit', activ='linear') # (t,64,512)*(512,vocab_size) = (t,64,vocab_size)
+        logit_shp = tf.shape(logit)
+        # (t*m, n_words)
+        probs = tf.nn.softmax(tf.reshape(logit,[logit_shp[0] * logit_shp[1], logit_shp[2]]))    # (t*64, vocab_size)
+        return bo_lstm, to_lstm, logit, probs

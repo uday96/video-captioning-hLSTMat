@@ -44,7 +44,7 @@ def train(model_options):
     ctx_mask = tf.placeholder(tf.float32, shape=(model_options['batch_size'],28), name='ctx_mask')
     # create tensorflow variables
     tfparams = utils.init_tfparams(params)
-    init_state, init_memory, bo_lstm, to_lstm = model.build_model(tfparams, model_options, x, mask, ctx, ctx_mask)
+    bo_lstm, to_lstm, logit, probs = model.build_model(tfparams, model_options, x, mask, ctx, ctx_mask)
     # Initialize all variables
     var_init = tf.global_variables_initializer()
     # Ops to save and restore all the variables.
@@ -52,7 +52,7 @@ def train(model_options):
     # Launch the graph
     with tf.Session() as sess:
         sess.run(var_init)
-        ans = sess.run([init_state,init_memory,bo_lstm, to_lstm], feed_dict={
+        ans = sess.run([bo_lstm, to_lstm, logit, probs], feed_dict={
                     x: x_tv,
                     mask: mask_tv,
                     ctx: ctx_tv,
