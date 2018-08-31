@@ -57,4 +57,9 @@ class Model(object):
                                                         init_state=init_state,
                                                         init_memory=init_memory,
                                                         use_noise=use_noise)
-        return init_state, init_memory, bo_lstm
+        bo_lstm_h = bo_lstm[:,0,:,:]
+        to_lstm = self.layers.get_layer('lstm')[1](tfparams, bo_lstm_h,
+                                                   mask=mask,
+                                                   one_step=False,
+                                                   prefix='to_lstm')
+        return init_state, init_memory, bo_lstm, to_lstm
