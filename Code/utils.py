@@ -7,6 +7,7 @@ import json, copy
 import config
 from collections import OrderedDict
 import tensorflow as tf
+import pickle
 
 def get_rngs(seed=None):
     if seed is None:
@@ -35,6 +36,15 @@ def read_from_json(infname):
 	with open(infname,'r') as infile:
 		data = json.load(infile)
 		return data
+
+def write_to_pickle(data,outfname):
+    with open(outfname,'wb') as outfile:
+        pickle.dump(data, outfile)
+
+def read_from_pickle(infname):
+    with open(infname,'rb') as infile:
+        data = pickle.load(infile)
+        return data
 
 def read_file_to_list(fname):
 	with open(fname,"r") as f:
@@ -76,10 +86,7 @@ def load_default_params():
 
 def create_dir_if_not_exist(directory):
     if not os.path.exists(directory):
-        print('creating directory %s'%directory)
         os.makedirs(directory)
-    else:
-        print("%s already exists!"%directory)
 
 def ortho_weight(ndim):
     """

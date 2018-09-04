@@ -6,7 +6,7 @@ MSVD_VIDEO_DATA_PATH = "../Data/MSVD/YouTubeClips/"
 MSVD_OMMITTED_CAPS_PATH = "../Data/MSVD/MSVD_omitted_caps.txt"
 MSVD_FINAL_CORPUS_PATH = "../Data/MSVD/MSVD_final_corpus.csv"
 MSVD_VOCAB_PATH = '../Data/MSVD/MSVD_vocab.json'
-MSVD_REVERSE_VOCAB_PATH = '../Data/MSVD/MSVD_reverse_vocab.json'
+MSVD_REVERSE_VOCAB_PATH = '../Data/MSVD/MSVD_reverse_vocab.pkl'
 MSVD_VID_CAPS_TRAIN_PATH = '../Data/MSVD/MSVD_vid_caps_train.json'
 MSVD_VID_CAPS_VAL_PATH = '../Data/MSVD/MSVD_vid_caps_val.json'
 MSVD_VID_CAPS_TEST_PATH = '../Data/MSVD/MSVD_vid_caps_test.json'
@@ -45,7 +45,6 @@ params = {
     'reverse_vocab_path' : MSVD_REVERSE_VOCAB_PATH,
     'mb_size_train' : 64,
     'mb_size_test' : 128,
-    'maxlen_caption' : 50,
     'train_caps_path' : MSVD_VID_CAPS_TRAIN_PATH,
     'val_caps_path' : MSVD_VID_CAPS_VAL_PATH,
     'test_caps_path' : MSVD_VID_CAPS_TEST_PATH,
@@ -63,32 +62,30 @@ params = {
     'batch_size' : 64,	# for trees use 25
     'metric' : 'everything',	# set to perplexity on DVS # blue, meteor, or both
     'use_dropout' : True,
-    'selector':True,
-    'ctx2out':True,
-    'prev2out':True,
+    'selector' : True,
+    'ctx2out' : True,
+    'prev2out' : True,
+    # in the unit of minibatches
+    'dispFreq' : 10,
+    'validFreq' : 2000,
+    'saveFreq' : -1, # this is disabled, now use sampleFreq instead
+    'sampleFreq' : 100,
+    'verbose' : True,
+    'debug' : False,
+    'reload' : False,
+    'from_dir' : '',
+    'ctx_frames' : 28, # 26 when compare 
+    'random_seed' : 1234,
 }
 
 # params = {
-#         'reload_': False,
-#         'from_dir': '',
 #         'n_layers_out':1, # for predicting next word        
 #         'n_layers_init':0, 
 #         'encoder_dim': 300,
-#         'prev2out':True, 
-#         'ctx2out':True, 
 #         'decay_c':1e-4,
 #         'alpha_entropy_r': 0.,
 #         'alpha_c':0.70602,
-#         'selector':True,
 #         'clip_c': 10.,
 #         'valid_batch_size':200,
-#         # in the unit of minibatches
-#         'dispFreq':10,
-#         'validFreq':2000,
-#         'saveFreq':-1, # this is disabled, now use sampleFreq instead
-#         'sampleFreq':100,
-#         'K':28, # 26 when compare
 #         'OutOf':None, # used to be 240, for motionfeature use 26
-#         'verbose': True,
-#         'debug': False,
 #         }

@@ -65,7 +65,7 @@ class Movie2Caption(object):
         self.val_caps = utils.read_from_json(self.val_caps_path)
         self.test_caps = utils.read_from_json(self.test_caps_path)
         self.vocab = utils.read_from_json(self.vocab_path)
-        self.reverse_vocab = utils.read_from_json(self.reverse_vocab_path)
+        self.reverse_vocab = utils.read_from_pickle(self.reverse_vocab_path)
         self.vocab_size = len(self.vocab)
         if self.cnn_name == 'resnet':
             self.ctx_dim = 2048
@@ -85,7 +85,7 @@ def prepare_data(engine, IDs, mode="train"):
         feat_list.append(feat)
         words = engine.get_cap_tokens(vidID, int(capID), mode)
         seqs.append([engine.vocab[w]
-                     if w in engine.vocab and engine.vocab[w] < engine.vocab_size else 2 for w in words])
+                     if w in engine.vocab and engine.vocab[w] < engine.vocab_size else 1 for w in words])   # 1 => UNK
     lengths = [len(s) for s in seqs]
     if engine.maxlen_caption != None:
         new_seqs = []

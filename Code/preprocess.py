@@ -125,16 +125,16 @@ def gen_vocab(df,whichdata):
 	if whichdata=="train":
 		vocab_list = list(vocab)
 		vocab_list.sort()
-		vocab_dict = {vocab_list[index]:index+3 for index in range(len(vocab_list))}
-		vocab_dict['<bos>'] = 0
-		vocab_dict['<eos>'] = 1
-		vocab_dict['UNK'] = 2
-		vocab_rev_dict = {index+3:vocab_list[index] for index in range(len(vocab_list))}
-		vocab_rev_dict[0] = '<bos>'
-		vocab_rev_dict[1] = '<eos>'
-		vocab_rev_dict[2] = 'UNK'
+		vocab_dict = {vocab_list[index]:index+2 for index in range(len(vocab_list))}
+		# vocab_dict['<bos>'] = 0
+		vocab_dict['<eos>'] = 0
+		vocab_dict['UNK'] = 1
+		vocab_rev_dict = {index+2:vocab_list[index] for index in range(len(vocab_list))}
+		# vocab_rev_dict[0] = '<bos>'
+		vocab_rev_dict[0] = '<eos>'
+		vocab_rev_dict[1] = 'UNK'
 		utils.write_to_json(vocab_dict,config.MSVD_VOCAB_PATH)
-		utils.write_to_json(vocab_rev_dict,config.MSVD_REVERSE_VOCAB_PATH)
+		utils.write_to_pickle(vocab_rev_dict,config.MSVD_REVERSE_VOCAB_PATH)
 		print("Size of Vocabulary: "+str(len(vocab)))
 	return vocab, vid_caps_dict
 

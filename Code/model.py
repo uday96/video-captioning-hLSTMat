@@ -66,7 +66,7 @@ class Model(object):
         to_lstm_h = to_lstm[0]  # (t,64,512)
         alphas = bo_lstm[2]
         ctxs = bo_lstm[3]
-        betas = bo_lstm[4]
+        betas = bo_lstm[4]  # (t,m)
         if options['use_dropout']:
             bo_lstm_h = self.layers.dropout_layer(bo_lstm_h, use_noise)
             to_lstm_h = self.layers.dropout_layer(to_lstm_h, use_noise)
