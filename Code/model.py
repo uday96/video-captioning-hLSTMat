@@ -96,3 +96,85 @@ class Model(object):
         cost = tf.reduce_sum((cost * mask), axis=0) # (m,) : sum across all timesteps for each element in batch
         extra = [probs, alphas, betas]
         return use_noise, cost, extra
+
+    def build_sampler(self, tfparams, options, use_noise, ctx0, ctx_mask, x,
+                    bo_init_state_sampler, to_init_state_sampler, bo_init_memory_sampler, to_init_memory_sampler, mode=None):
+        # ctx: # frames x ctx_dim
+        ctx_ = ctx0
+        counts = tf.reduce_sum(ctx_mask, axis=-1)   # scalar
+
+        ctx = ctx_
+        ctx_mean = tf.reduce_sum(ctx, axis=0) / counts  # (2048,)
+        ctx = tf.expand_dims(ctx, 0)  # (1,28,2048)
+        
+        # initial state/cell
+        bo_init_state = self.layers.get_layer('ff')[1](
+            tfparams, ctx_mean, options, prefix='ff_state', activ='tanh')
+        bo_init_memory = self.layers.get_layer('ff')[1](
+            tfparams, ctx_mean, options, prefix='ff_memory', activ='tanh')
+        
+        to_init_state = tf.constant(0., shape=(options['lstm_dim'],), dtype=tf.float32)  # DOUBT : constant or not?
+        to_init_memory = tf.constant(0., shape=(options['lstm_dim'],), dtype=tf.float32)
+        init_state = [bo_init_state, to_init_state]
+        init_memory = [bo_init_memory, to_init_memory]
+
+        print 'building f_init...',
+        f_init = [ctx0] + init_state + init_memory
+        print 'done'
+
+        init_state = [bo_init_state_sampler, to_init_state_sampler]
+        init_memory = [bo_init_memory_sampler, to_init_memory_sampler]
+
+        # # if it's the first word, emb should be all zero
+        # emb = tensor.switch(x[:, None] < 0, tensor.alloc(0., 1, tparams['Wemb'].shape[1]),
+        #                     tparams['Wemb'][x])
+        inputs = tf.nn.embedding_lookup(tfparams['Wemb'], x)    # (1,512) ? INCOMPLETE
+        bo_lstm = self.layers.get_layer('lstm_cond')[1](tfparams, inputs, options,
+                                                        prefix='bo_lstm',
+                                                        mask=None, context=ctx,
+                                                        one_step=True,
+                                                        init_state=init_state[0],
+                                                        init_memory=init_memory[0],
+                                                        use_noise=use_noise,
+                                                        mode=mode)
+        to_lstm = self.layers.get_layer('lstm')[1](tfparams, bo_lstm[0],
+                                                   mask=None,
+                                                   one_step=True,
+                                                   init_state=init_state[1],
+                                                   init_memory=init_memory[1],
+                                                   prefix='to_lstm'
+                                                   )
+        next_state = [bo_lstm[0], to_lstm[0]]
+        next_memory = [bo_lstm[1], to_lstm[0]]
+
+        bo_lstm_h = bo_lstm[0]
+        to_lstm_h = to_lstm[0]
+        alphas = bo_lstm[2]
+        ctxs = bo_lstm[3]
+        betas = bo_lstm[4]
+        if options['use_dropout']:
+            bo_lstm_h = self.layers.dropout_layer(bo_lstm_h, use_noise)
+            to_lstm_h = self.layers.dropout_layer(to_lstm_h, use_noise)
+        # compute word probabilities
+        logit = self.layers.get_layer('ff')[1](tfparams, bo_lstm_h, options, prefix='ff_logit_bo', activ='linear')  # (t,64,512)*(512,512) = (t,64,512)
+        if options['prev2out']:
+            logit += inputs
+        if options['ctx2out']:
+            to_lstm_h *= (1-betas[:, :, None])  # (t,64,512)*(t,64,1)
+            ctxs_beta = self.layers.get_layer('ff')[1](tfparams, ctxs, options, prefix='ff_logit_ctx', activ='linear')  # (t,64,2048)*(2048,512) = (t,64,512)
+            ctxs_beta += self.layers.get_layer('ff')[1](tfparams, to_lstm_h, options, prefix='ff_logit_to', activ='linear') # (t,64,512)+((t,64,512)*(512,512)) = (t,64,512)
+            logit += ctxs_beta
+        logit = utils.tanh(logit)   # (t,64,512)
+        if options['use_dropout']:
+            logit = self.layers.dropout_layer(logit, use_noise)
+        # (t,m,n_words)
+        logit = self.layers.get_layer('ff')[1](tfparams, logit, options, prefix='ff_logit', activ='linear') # (t,64,512)*(512,vocab_size) = (t,64,vocab_size)
+        logit_shape = tf.shape(logit)
+        next_probs = tf.nn.softmax(logit)
+        # next_sample = trng.multinomial(pvals=next_probs).argmax(1)
+
+        # next word probability
+        print 'building f_next...'
+        f_next = [next_probs, next_probs] + next_state + next_memory
+        print 'done'
+        return f_init, f_next

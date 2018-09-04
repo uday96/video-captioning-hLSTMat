@@ -116,13 +116,13 @@ class Layers(object):
         state_below = batch_matmul(state_below, tfparams[_p(prefix, 'W')]) + b  # (19,64,512)*(512,2048)+(2048,) = (19,64,2048)
 
         if one_step:
-            # rval = _step(mask, state_below, init_state, init_memory)
-            raise NotImplementedError()
-        states = tf.scan(step, 
-                (mask,state_below),
-                initializer=[init_state,init_memory],
-                name=_p(prefix, '_layers'))
-        return states    
+            rval = step(elems=[mask, state_below], prev=[init_state, init_memory])
+        else:
+            rval = tf.scan(step, 
+                    (mask,state_below),
+                    initializer=[init_state,init_memory],
+                    name=_p(prefix, '_layers'))
+        return rval
 
     # Conditional LSTM layer with Attention
     def param_init_lstm_cond(self, options, params,
@@ -208,8 +208,8 @@ class Layers(object):
         pctx_ = batch_matmul(context, tfparams[_p(prefix, 'Wc_att')]) + tfparams[_p(prefix, 'b_att')]    # (64,28,2048)*(2048,2048)+(2048,) = (64,28,2048)
         if one_step:
             # tensor.dot will remove broadcasting dim
-            # pctx_ = tensor.addbroadcast(pctx_, 0)
-            raise NotImplementedError()
+            # raise NotImplementedError()
+            pass    # INCOMPLETE
         # projected x
         state_below = batch_matmul(state_below, tfparams[_p(prefix, 'W')]) + tfparams[_p(prefix, 'b')]    # (19,64,512)*(512,2048)+(2048) = (19,64,2048)
         Wd_att = tfparams[_p(prefix, 'Wd_att')]  # (512,2048)
@@ -276,20 +276,28 @@ class Layers(object):
         if options['use_dropout']:
             dp_shape = tf.shape(state_below)
             if one_step:
-                raise NotImplementedError()
+                dp_mask = tf.cond(use_noise,
+                                lambda: tf.nn.dropout(tf.fill([dp_shape[0], 3 * dim], np.float32(0.5)), keep_prob=0.5),
+                                lambda: tf.fill([dp_shape[0], 3 * dim], np.float32(0.5)))
             else:
                 dp_mask = tf.cond(use_noise,
                                 lambda: tf.nn.dropout(tf.fill([dp_shape[0], dp_shape[1], 3 * dim], np.float32(0.5)), keep_prob=0.5),
                                 lambda: tf.fill([dp_shape[0], dp_shape[1], 3 * dim], np.float32(0.5)))
 
-        seqs = [mask, state_below]
-        if options['use_dropout']:
-            seqs.append(dp_mask)
-        updates = tf.scan(step, 
-                        seqs,
-                        initializer=[init_state, init_memory, init_alpha, init_ctx, init_beta],
-                        name=_p(prefix, '_layers'))
-        return updates
+        if one_step:
+            if options['use_dropout']:
+                rval = step(elems=[mask, state_below, dp_mask], prev=[init_state, init_memory, init_alpha, init_ctx, init_beta])
+            else:
+                rval = step(elems=[mask, state_below], prev=[init_state, init_memory, init_alpha, init_ctx, init_beta])
+        else:
+            seqs = [mask, state_below]
+            if options['use_dropout']:
+                seqs.append(dp_mask)
+            rval = tf.scan(step, 
+                            seqs,
+                            initializer=[init_state, init_memory, init_alpha, init_ctx, init_beta],
+                            name=_p(prefix, '_layers'))
+        return rval
 
     # def create_get_lstm_cell(prefix, is_training=True, rnn_mode="basic"):
     #     if rnn_mode == "basic":

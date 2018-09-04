@@ -64,9 +64,9 @@ def train(model_options,
     vocab_size = engine.vocab_size
     print 'n_words:', model_options['vocab_size']
 
-    # # set test values, for debugging
-    # idx = engine.kf_train[0]
-    # x_tv, mask_tv, ctx_tv, ctx_mask_tv = data_engine.prepare_data(engine, [engine.train_data_ids[index] for index in idx], mode="train")
+    # set test values, for debugging
+    idx = engine.kf_train[0]
+    x_tv, mask_tv, ctx_tv, ctx_mask_tv = data_engine.prepare_data(engine, [engine.train_data_ids[index] for index in idx], mode="train")
 
     print 'init params'
     t0 = time.time()
@@ -79,11 +79,24 @@ def train(model_options,
     CTX = tf.placeholder(tf.float32, shape=(batch_size, ctx_frames, ctx_dim), name='ctx')
     CTX_MASK = tf.placeholder(tf.float32, shape=(batch_size, ctx_frames), name='ctx_mask')
 
+    CTX_SAMPLER = tf.placeholder(tf.float32, shape=(ctx_frames, ctx_dim), name='ctx_sampler')
+    CTX_MASK_SAMPLER = tf.placeholder(tf.float32, shape=(ctx_frames), name='ctx_mask_sampler')
+    X_SAMPLER = tf.placeholder(tf.int32, shape=(1,), name='x_sampler')
+    BO_INIT_STATE_SAMPLER = tf.placeholder(tf.float32, shape=(1,lstm_dim), name='bo_init_state_sampler')
+    TO_INIT_STATE_SAMPLER = tf.placeholder(tf.float32, shape=(1,lstm_dim), name='to_init_state_sampler')
+    BO_INIT_MEMORY_SAMPLER = tf.placeholder(tf.float32, shape=(1,lstm_dim), name='bo_init_memory_sampler')
+    TO_INIT_MEMORY_SAMPLER = tf.placeholder(tf.float32, shape=(1,lstm_dim), name='to_init_memory_sampler')
+
     # create tensorflow variables
+    print 'buliding model'
     tfparams = utils.init_tfparams(params)
     use_noise, COST, extra = model.build_model(tfparams, model_options, X, MASK, CTX, CTX_MASK)
     ALPHAS = extra[1]
     BETAS = extra[2]
+
+    print 'buliding sampler'
+    f_init, f_next = model.build_sampler(tfparams, model_options, use_noise, CTX_SAMPLER, CTX_MASK_SAMPLER,
+                                X_SAMPLER, BO_INIT_STATE_SAMPLER, TO_INIT_STATE_SAMPLER, BO_INIT_MEMORY_SAMPLER, TO_INIT_MEMORY_SAMPLER)
 
     LOSS = tf.reduce_mean(COST)
     UPDATE_OPS = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
@@ -114,6 +127,10 @@ def train(model_options,
     # Launch the graph
     with tf.Session() as sess:
         sess.run(var_init)
+        af = sess.run(f_init, feed_dict={
+                                CTX_SAMPLER: ctx_tv[0],
+                                CTX_MASK_SAMPLER: ctx_mask_tv[0]})
+        return af
         for eidx in xrange(max_epochs):
             n_samples = 0
             train_costs = []
