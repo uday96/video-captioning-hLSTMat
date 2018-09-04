@@ -20,6 +20,13 @@ class Layers(object):
         fns = self.layers[name]
         return (eval(fns[0]), eval(fns[1]))
 
+    # dropout
+    def dropout_layer(self, state_before, use_noise):
+        proj = tf.cond(use_noise,
+                        lambda: tf.nn.dropout(state_before, keep_prob=0.5)*0.5, # DOUBT
+                        lambda: state_before * 0.5)
+        return proj
+
     def param_init_fflayer(self, options, params, prefix='ff', nin=None, nout=None):
         if nin == None:
             nin = options['ctx_dim']
@@ -61,20 +68,16 @@ class Layers(object):
             if init_state is None:
                 raise ValueError('previous state must be provided')
         
-        n_steps = state_below.shape[0]
+        state_below_shape = tf.shape(state_below)
         dim = tfparams[_p(prefix, 'U')].shape[0]
         if state_below.shape.ndims == 3:
             n_samples = state_below.shape[1]
         else:   
             n_samples = 1
 
-        # if init_state is None:
-        #     init_state = tf.Variable(np.zeros((n_samples, dim)),dtype=tf.float32)
-        # if init_memory is None:
-        #     init_memory = tf.Variable(np.zeros((n_samples, dim)),dtype=tf.float32)
         # mask
         if mask is None:
-            mask = tf.constant(1., shape=(state_below.shape[0], 1), dtype=tf.float32)
+            mask = tf.fill([state_below_shape[0], 1], np.float32(1.))
         if init_state is None:
             init_state = tf.constant(0., shape=(n_samples, dim), dtype=tf.float32)  # DOUBT ? getting same ans for tf.variable and tf.constant
         if init_memory is None:
@@ -187,14 +190,14 @@ class Layers(object):
             if init_state is None:
                 raise ValueError('previous state must be provided')
 
-        nsteps = state_below.shape[0]
+        state_below_shape = tf.shape(state_below)
         if state_below.shape.ndims == 3:
             n_samples = state_below.shape[1]
         else:
             n_samples = 1
 
         if mask is None:
-            mask = tf.constant(1., shape=(state_below.shape[0], 1), dtype=tf.float32)
+            mask = tf.fill([state_below_shape[0], 1], np.float32(1.))
         if init_state is None:
             init_state = tf.constant(0., shape=(n_samples, dim), dtype=tf.float32)  # DOUBT ? getting same ans for tf.variable and tf.constant
         if init_memory is None:
@@ -232,7 +235,10 @@ class Layers(object):
 
         def step(prev, elems):
             # gather previous internal state and output state
-            m_, x_ = elems
+            if options['use_dropout']:
+                m_, x_, dp_ = elems
+            else:
+                m_, x_ = elems
             h_, c_, _, _, _ = prev
             preact = tf.matmul(h_, U)   # (64,512)*(512,2048) = (64,2048)
             preact = preact + x_
@@ -240,7 +246,9 @@ class Layers(object):
             f = _slice(preact, 1, dim)  # (64,512)  (512,1023)
             o = _slice(preact, 2, dim)  # (64,512)  (1024-1535)
             if options['use_dropout']:
-                raise NotImplementedError()
+                i = i * _slice(dp_, 0, dim)
+                f = f * _slice(dp_, 1, dim)
+                o = o * _slice(dp_, 2, dim)
             i = tf.sigmoid(i)
             f = tf.sigmoid(f)
             o = tf.sigmoid(o)
@@ -265,45 +273,57 @@ class Layers(object):
             rval = [h, c, alpha, ctx_, sel_]
             return rval
 
+        if options['use_dropout']:
+            dp_shape = tf.shape(state_below)
+            if one_step:
+                raise NotImplementedError()
+            else:
+                dp_mask = tf.cond(use_noise,
+                                lambda: tf.nn.dropout(tf.fill([dp_shape[0], dp_shape[1], 3 * dim], np.float32(0.5)), keep_prob=0.5),
+                                lambda: tf.fill([dp_shape[0], dp_shape[1], 3 * dim], np.float32(0.5)))
+
+        seqs = [mask, state_below]
+        if options['use_dropout']:
+            seqs.append(dp_mask)
         updates = tf.scan(step, 
-                    (mask,state_below),
-                    initializer=[init_state, init_memory, init_alpha, init_ctx, init_beta],
-                    name=_p(prefix, '_layers'))
+                        seqs,
+                        initializer=[init_state, init_memory, init_alpha, init_ctx, init_beta],
+                        name=_p(prefix, '_layers'))
         return updates
 
-    def create_get_lstm_cell(prefix, is_training=True, rnn_mode="basic"):
-        if rnn_mode == "basic":
-          return tf.contrib.rnn.BasicLSTMCell(lstm_size, forget_bias=0.0, state_is_tuple=True, reuse=not is_training, name=prefix)
-        if rnn_mode == "block":
-          return tf.contrib.rnn.LSTMBlockCell(lstm_size, forget_bias=0.0, name=prefix)
-        raise ValueError("rnn_mode %s not supported" % config.rnn_mode)
+    # def create_get_lstm_cell(prefix, is_training=True, rnn_mode="basic"):
+    #     if rnn_mode == "basic":
+    #       return tf.contrib.rnn.BasicLSTMCell(lstm_size, forget_bias=0.0, state_is_tuple=True, reuse=not is_training, name=prefix)
+    #     if rnn_mode == "block":
+    #       return tf.contrib.rnn.LSTMBlockCell(lstm_size, forget_bias=0.0, name=prefix)
+    #     raise ValueError("rnn_mode %s not supported" % config.rnn_mode)
 
-    def make_cell(prefix, is_training=True, rnn_mode="basic"):
-        cell = _get_lstm_cell(is_training, rnn_mode)
-        # if is_training and config.keep_prob < 1:
-        #   cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=config.keep_prob)
-        return cell
+    # def make_cell(prefix, is_training=True, rnn_mode="basic"):
+    #     cell = _get_lstm_cell(is_training, rnn_mode)
+    #     # if is_training and config.keep_prob < 1:
+    #     #   cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=config.keep_prob)
+    #     return cell
 
-    # Incomplete
-    def build_hlstm(prefix, inputs, n_timesteps, init_state, init_memory, is_training=True, rnn_mode="basic"):
-        """Build the inference graph using canonical LSTM cells."""
-        # Slightly better results can be obtained with forget gate biases
-        # initialized to 1 but the hyperparameters of the model would need to be
-        # different than reported in the paper.
-        cell = tf.contrib.rnn.MultiRNNCell([make_cell(lstm_name, is_training, rnn_mode) for lstm_name in prefix], state_is_tuple=True)
-        # Simplified version of tf.nn.static_rnn().
-        # This builds an unrolled LSTM for tutorial purposes only.
-        # In general, use tf.nn.static_rnn() or tf.nn.static_state_saving_rnn().
-        #
-        # The alternative version of the code below is:
-        #
-        # inputs = tf.unstack(inputs, num=self.num_steps, axis=1)
-        # outputs, state = tf.nn.static_rnn(cell, inputs, initial_state=self._initial_state)
-        outputs = []
-        with tf.variable_scope("RNN"):
-          for time_step in range(n_timesteps):
-            if time_step > 0: tf.get_variable_scope().reuse_variables()
-            (cell_output, state) = cell(inputs[time_step, :, :], state)
-            outputs.append(cell_output)
-        output = tf.reshape(tf.concat(outputs, 1), [-1, lstm_size])
-        return output, state
+    # # Incomplete
+    # def build_hlstm(prefix, inputs, n_timesteps, init_state, init_memory, is_training=True, rnn_mode="basic"):
+    #     """Build the inference graph using canonical LSTM cells."""
+    #     # Slightly better results can be obtained with forget gate biases
+    #     # initialized to 1 but the hyperparameters of the model would need to be
+    #     # different than reported in the paper.
+    #     cell = tf.contrib.rnn.MultiRNNCell([make_cell(lstm_name, is_training, rnn_mode) for lstm_name in prefix], state_is_tuple=True)
+    #     # Simplified version of tf.nn.static_rnn().
+    #     # This builds an unrolled LSTM for tutorial purposes only.
+    #     # In general, use tf.nn.static_rnn() or tf.nn.static_state_saving_rnn().
+    #     #
+    #     # The alternative version of the code below is:
+    #     #
+    #     # inputs = tf.unstack(inputs, num=self.num_steps, axis=1)
+    #     # outputs, state = tf.nn.static_rnn(cell, inputs, initial_state=self._initial_state)
+    #     outputs = []
+    #     with tf.variable_scope("RNN"):
+    #       for time_step in range(n_timesteps):
+    #         if time_step > 0: tf.get_variable_scope().reuse_variables()
+    #         (cell_output, state) = cell(inputs[time_step, :, :], state)
+    #         outputs.append(cell_output)
+    #     output = tf.reshape(tf.concat(outputs, 1), [-1, lstm_size])
+    #     return output, state

@@ -8,7 +8,9 @@ import tensorflow as tf
 
 def train(model_options):
     tf.set_random_seed(1234)
+
     model = Model()
+
     dataset_name = 'msvd'
     cnn_name = 'resnet'
     train_data_ids_path = config.MSVD_DATA_IDS_TRAIN_PATH
@@ -23,28 +25,37 @@ def train(model_options):
     val_caps_path = config.MSVD_VID_CAPS_VAL_PATH
     test_caps_path = config.MSVD_VID_CAPS_TEST_PATH
     feats_dir = config.MSVD_FEATS_RESNET_DIR
+
     print 'Loading data'
     engine = data_engine.Movie2Caption(dataset_name,cnn_name,train_data_ids_path, val_data_ids_path, test_data_ids_path,
                 vocab_path, reverse_vocab_path, mb_size_train, mb_size_test, maxlen_caption,
                 train_caps_path, val_caps_path, test_caps_path, feats_dir)
+
     model_options['dim_ctx'] = engine.ctx_dim
     model_options['vocab_size'] = engine.vocab_size
     print 'n_words:', model_options['vocab_size']
+
     # set test values, for debugging
     idx = engine.kf_train[0]
     x_tv, mask_tv, ctx_tv, ctx_mask_tv = data_engine.prepare_data(engine, [engine.train_data_ids[index] for index in idx], mode="train")
+
     print 'init params'
     t0 = time.time()
     params = model.init_params(model_options)
+
     # description string: #words x #samples
-    x = tf.placeholder(tf.int64, shape=(None,model_options['batch_size']), name='word_seq_x')  # word seq input
-    mask = tf.placeholder(tf.float32, shape=(None,model_options['batch_size']), name='word_seq_mask')
+    x = tf.placeholder(tf.int32, shape=(None,model_options['batch_size']), name='word_seq_x')  # word seq input (t,m)
+    mask = tf.placeholder(tf.float32, shape=(None,model_options['batch_size']), name='word_seq_mask')   # (t,m)
     # context: #samples x #annotations x dim
     ctx = tf.placeholder(tf.float32, shape=(model_options['batch_size'],28,model_options['ctx_dim']), name='ctx')
     ctx_mask = tf.placeholder(tf.float32, shape=(model_options['batch_size'],28), name='ctx_mask')
+
     # create tensorflow variables
     tfparams = utils.init_tfparams(params)
-    bo_lstm, to_lstm, logit, probs = model.build_model(tfparams, model_options, x, mask, ctx, ctx_mask)
+    use_noise, cost, extra = model.build_model(tfparams, model_options, x, mask, ctx, ctx_mask)
+    alphas = extra[1]
+    betas = extra[2]
+
     # Initialize all variables
     var_init = tf.global_variables_initializer()
     # Ops to save and restore all the variables.
@@ -52,7 +63,7 @@ def train(model_options):
     # Launch the graph
     with tf.Session() as sess:
         sess.run(var_init)
-        ans = sess.run([bo_lstm, to_lstm, logit, probs], feed_dict={
+        ans = sess.run(cost, feed_dict={
                     x: x_tv,
                     mask: mask_tv,
                     ctx: ctx_tv,

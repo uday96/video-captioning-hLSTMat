@@ -36,16 +36,17 @@ class Model(object):
         return params
 
     def build_model(self, tfparams, options, x, mask, ctx, ctx_mask):
-        use_noise = np.float32(0.)
-        n_timesteps = x.shape[0]
-        n_samples = x.shape[1]
+        use_noise = tf.Variable(False, dtype=tf.bool)
+        x_shape = tf.shape(x)
+        n_timesteps = x_shape[0]
+        n_samples = x_shape[1]
         # get word embeddings
         inputs = tf.nn.embedding_lookup(tfparams['Wemb'], x)    # (num_steps,64,512)
         # count num_frames==28
         counts = tf.expand_dims(tf.reduce_sum(ctx_mask, 1), 1)  # (64,1)
         ctx_ = ctx
         ctx0 = ctx_     # (64,28,2048)
-        ctx_mean = tf.reduce_sum(ctx0, 1) / counts  #mean pooling of {vi}   # (64,2048)
+        ctx_mean = tf.reduce_sum(ctx0, axis=1) / counts  #mean pooling of {vi}   # (64,2048)
         # initial state/cell
         init_state = self.layers.get_layer('ff')[1](tfparams, ctx_mean, options, prefix='ff_state', activ='tanh')   # (64,512)
         init_memory = self.layers.get_layer('ff')[1](tfparams, ctx_mean, options, prefix='ff_memory', activ='tanh') # (64,512)
@@ -67,9 +68,8 @@ class Model(object):
         ctxs = bo_lstm[3]
         betas = bo_lstm[4]
         if options['use_dropout']:
-            # bo_lstm_h = self.layers.dropout_layer(bo_lstm_h, use_noise, trng)
-            # to_lstm_h = self.layers.dropout_layer(to_lstm_h, use_noise, trng)
-            raise NotImplementedError()
+            bo_lstm_h = self.layers.dropout_layer(bo_lstm_h, use_noise)
+            to_lstm_h = self.layers.dropout_layer(to_lstm_h, use_noise)
         # compute word probabilities
         logit = self.layers.get_layer('ff')[1](tfparams, bo_lstm_h, options, prefix='ff_logit_bo', activ='linear')  # (t,64,512)*(512,512) = (t,64,512)
         if options['prev2out']:
@@ -81,11 +81,18 @@ class Model(object):
             logit += ctxs_beta
         logit = utils.tanh(logit)   # (t,64,512)
         if options['use_dropout']:
-            # logit = self.layers.dropout_layer(logit, use_noise, trng)
-            raise NotImplementedError()
+            logit = self.layers.dropout_layer(logit, use_noise)
         # (t,m,n_words)
         logit = self.layers.get_layer('ff')[1](tfparams, logit, options, prefix='ff_logit', activ='linear') # (t,64,512)*(512,vocab_size) = (t,64,vocab_size)
-        logit_shp = tf.shape(logit)
+        logit_shape = tf.shape(logit)
         # (t*m, n_words)
-        probs = tf.nn.softmax(tf.reshape(logit,[logit_shp[0] * logit_shp[1], logit_shp[2]]))    # (t*64, vocab_size)
-        return bo_lstm, to_lstm, logit, probs
+        probs = tf.nn.softmax(tf.reshape(logit,[logit_shape[0] * logit_shape[1], logit_shape[2]]))    # (t*64, vocab_size)
+        # cost
+        x_flat = tf.reshape(x,[x_shape[0] * x_shape[1]])  # (t*m,)
+        x_flat_shape = tf.shape(x_flat)
+        gather_indices = tf.stack([tf.range(x_flat_shape[0]), x_flat], axis=1)  # (t*m,2)
+        cost = -tf.log(tf.gather_nd(probs,gather_indices) + 1e-8) # (t*m,) : pick probs of each word in each timestep 
+        cost = tf.reshape(cost,[x_shape[0], x_shape[1]])    # (t,m)
+        cost = tf.reduce_sum((cost * mask), axis=0) # (m,) : sum across all timesteps for each element in batch
+        extra = [probs, alphas, betas]
+        return use_noise, cost, extra
