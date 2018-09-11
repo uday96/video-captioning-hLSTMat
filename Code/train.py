@@ -81,7 +81,7 @@ def train(model_options,
 
     CTX_SAMPLER = tf.placeholder(tf.float32, shape=(ctx_frames, ctx_dim), name='ctx_sampler')
     CTX_MASK_SAMPLER = tf.placeholder(tf.float32, shape=(ctx_frames), name='ctx_mask_sampler')
-    X_SAMPLER = tf.placeholder(tf.int32, shape=(1,), name='x_sampler')
+    X_SAMPLER = tf.placeholder(tf.int32, shape=(1), name='x_sampler')
     BO_INIT_STATE_SAMPLER = tf.placeholder(tf.float32, shape=(1,lstm_dim), name='bo_init_state_sampler')
     TO_INIT_STATE_SAMPLER = tf.placeholder(tf.float32, shape=(1,lstm_dim), name='to_init_state_sampler')
     BO_INIT_MEMORY_SAMPLER = tf.placeholder(tf.float32, shape=(1,lstm_dim), name='bo_init_memory_sampler')
@@ -97,6 +97,12 @@ def train(model_options,
     print 'buliding sampler'
     f_init, f_next = model.build_sampler(tfparams, model_options, use_noise, CTX_SAMPLER, CTX_MASK_SAMPLER,
                                 X_SAMPLER, BO_INIT_STATE_SAMPLER, TO_INIT_STATE_SAMPLER, BO_INIT_MEMORY_SAMPLER, TO_INIT_MEMORY_SAMPLER)
+
+    print 'building f_log_probs'
+    f_log_probs = -COST
+
+    print 'building f_alpha'
+    f_alpha = [ALPHAS, BETAS]
 
     LOSS = tf.reduce_mean(COST)
     UPDATE_OPS = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
@@ -127,10 +133,10 @@ def train(model_options,
     # Launch the graph
     with tf.Session() as sess:
         sess.run(var_init)
-        af = sess.run(f_init, feed_dict={
-                                CTX_SAMPLER: ctx_tv[0],
-                                CTX_MASK_SAMPLER: ctx_mask_tv[0]})
-        return af
+        # af = sess.run(f_init, feed_dict={
+        #                         CTX_SAMPLER: ctx_tv[0],
+        #                         CTX_MASK_SAMPLER: ctx_mask_tv[0]})
+        # return af
         for eidx in xrange(max_epochs):
             n_samples = 0
             train_costs = []
@@ -172,7 +178,7 @@ def train(model_options,
                 else:
                     train_error = train_error * 0.95 + cost * 0.05
                 train_costs.append(cost)
-
+                dispFreq = 1
                 if np.mod(uidx, dispFreq) == 0:
                     print 'Epoch: ', eidx, \
                         ', Update: ', uidx, \
@@ -181,7 +187,7 @@ def train(model_options,
                         ', update time spent (sec): ', ud_duration, \
                         ', save_dir: ', save_dir, '\n'
                     
-                    alphas, betas = sess.run([ALPHAS,BETAS], feed_dict={
+                    alphas, betas = sess.run(f_alpha, feed_dict={
                                             X: x,
                                             MASK: mask,
                                             CTX: ctx,
@@ -200,11 +206,22 @@ def train(model_options,
                             print '(', np.round(betas[l, 0], 3), ')', engine.reverse_vocab[vv],
                         else:
                             print '(', np.round(betas[l, 0], 3), ')', 'UNK',
+                        print ",",
                         l += 1
                     print '(', np.round(betas[l, 0], 3), ')\n'
 
                 if np.mod(uidx, saveFreq) == 0:
                     pass
+                sampleFreq = 1
+                if np.mod(uidx, sampleFreq) == 0:
+                    sess.run(tf.assign(use_noise, False))
+                    print '------------- sampling from train ----------'
+                    x_s = x
+                    mask_s = mask
+                    ctx_s = ctx
+                    ctx_mask_s = ctx_mask
+                    # model.sample_execute(engine, model_options, tparams,
+                    #                           f_init, f_next, x_s, ctx_s, ctx_mask_s, trng)
                 return
     return
 

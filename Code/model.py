@@ -108,13 +108,11 @@ class Model(object):
         ctx = tf.expand_dims(ctx, 0)  # (1,28,2048)
         
         # initial state/cell
-        bo_init_state = self.layers.get_layer('ff')[1](
-            tfparams, ctx_mean, options, prefix='ff_state', activ='tanh')
-        bo_init_memory = self.layers.get_layer('ff')[1](
-            tfparams, ctx_mean, options, prefix='ff_memory', activ='tanh')
+        bo_init_state = self.layers.get_layer('ff')[1](tfparams, ctx_mean, options, prefix='ff_state', activ='tanh')    # (512,)
+        bo_init_memory = self.layers.get_layer('ff')[1](tfparams, ctx_mean, options, prefix='ff_memory', activ='tanh')  # (512,)
         
-        to_init_state = tf.constant(0., shape=(options['lstm_dim'],), dtype=tf.float32)  # DOUBT : constant or not?
-        to_init_memory = tf.constant(0., shape=(options['lstm_dim'],), dtype=tf.float32)
+        to_init_state = tf.constant(0., shape=(options['lstm_dim'],), dtype=tf.float32)  # DOUBT : constant or not? # (512,)
+        to_init_memory = tf.constant(0., shape=(options['lstm_dim'],), dtype=tf.float32)    # (512,)
         init_state = [bo_init_state, to_init_state]
         init_memory = [bo_init_memory, to_init_memory]
 
@@ -128,7 +126,7 @@ class Model(object):
         # # if it's the first word, emb should be all zero
         # emb = tensor.switch(x[:, None] < 0, tensor.alloc(0., 1, tparams['Wemb'].shape[1]),
         #                     tparams['Wemb'][x])
-        inputs = tf.nn.embedding_lookup(tfparams['Wemb'], x)    # (1,512) ? INCOMPLETE
+        inputs = tf.nn.embedding_lookup(tfparams['Wemb'], x)    # (1,512) ^ INCOMPLETE
         bo_lstm = self.layers.get_layer('lstm_cond')[1](tfparams, inputs, options,
                                                         prefix='bo_lstm',
                                                         mask=None, context=ctx,
@@ -147,34 +145,34 @@ class Model(object):
         next_state = [bo_lstm[0], to_lstm[0]]
         next_memory = [bo_lstm[1], to_lstm[0]]
 
-        bo_lstm_h = bo_lstm[0]
-        to_lstm_h = to_lstm[0]
-        alphas = bo_lstm[2]
-        ctxs = bo_lstm[3]
-        betas = bo_lstm[4]
+        bo_lstm_h = bo_lstm[0]  # (1,512)
+        to_lstm_h = to_lstm[0]  # (1,512)
+        alphas = bo_lstm[2] # (1,28)
+        ctxs = bo_lstm[3]   # (1,2048)
+        betas = bo_lstm[4]  # (1,)
         if options['use_dropout']:
             bo_lstm_h = self.layers.dropout_layer(bo_lstm_h, use_noise)
             to_lstm_h = self.layers.dropout_layer(to_lstm_h, use_noise)
         # compute word probabilities
-        logit = self.layers.get_layer('ff')[1](tfparams, bo_lstm_h, options, prefix='ff_logit_bo', activ='linear')  # (t,64,512)*(512,512) = (t,64,512)
+        logit = self.layers.get_layer('ff')[1](tfparams, bo_lstm_h, options, prefix='ff_logit_bo', activ='linear')  # (1,512)*(512,512) = (1,512)
         if options['prev2out']:
             logit += inputs
         if options['ctx2out']:
-            to_lstm_h *= (1-betas[:, :, None])  # (t,64,512)*(t,64,1)
-            ctxs_beta = self.layers.get_layer('ff')[1](tfparams, ctxs, options, prefix='ff_logit_ctx', activ='linear')  # (t,64,2048)*(2048,512) = (t,64,512)
-            ctxs_beta += self.layers.get_layer('ff')[1](tfparams, to_lstm_h, options, prefix='ff_logit_to', activ='linear') # (t,64,512)+((t,64,512)*(512,512)) = (t,64,512)
+            to_lstm_h *= (1-betas[:, None])  # (1,512)*(1,1) = (1,512)
+            ctxs_beta = self.layers.get_layer('ff')[1](tfparams, ctxs, options, prefix='ff_logit_ctx', activ='linear')  # (1,2048)*(2048,512) = (1,512)
+            ctxs_beta += self.layers.get_layer('ff')[1](tfparams, to_lstm_h, options, prefix='ff_logit_to', activ='linear') # (1,512)+((1,512)*(512,512)) = (1,512)
             logit += ctxs_beta
-        logit = utils.tanh(logit)   # (t,64,512)
+        logit = utils.tanh(logit)   # (1,512)
         if options['use_dropout']:
             logit = self.layers.dropout_layer(logit, use_noise)
-        # (t,m,n_words)
-        logit = self.layers.get_layer('ff')[1](tfparams, logit, options, prefix='ff_logit', activ='linear') # (t,64,512)*(512,vocab_size) = (t,64,vocab_size)
-        logit_shape = tf.shape(logit)
+        # (1,n_words)
+        logit = self.layers.get_layer('ff')[1](tfparams, logit, options, prefix='ff_logit', activ='linear') # (1,512)*(512,vocab_size) = (1,vocab_size)
         next_probs = tf.nn.softmax(logit)
-        # next_sample = trng.multinomial(pvals=next_probs).argmax(1)
+        # next_sample = trng.multinomial(pvals=next_probs).argmax(1)    # INCOMPLETE , DOUBT : why is multinomial needed?
+        next_sample = tf.multinomial(next_probs,1) # draw samples with given probabilities (1,1)
 
         # next word probability
-        print 'building f_next...'
-        f_next = [next_probs, next_probs] + next_state + next_memory
+        print 'building f_next...',
+        f_next = [next_probs, next_sample] + next_state + next_memory
         print 'done'
         return f_init, f_next

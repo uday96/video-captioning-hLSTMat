@@ -68,7 +68,6 @@ class Layers(object):
             if init_state is None:
                 raise ValueError('previous state must be provided')
         
-        state_below_shape = tf.shape(state_below)
         dim = tfparams[_p(prefix, 'U')].shape[0]
         if state_below.shape.ndims == 3:
             n_samples = state_below.shape[1]
@@ -77,7 +76,7 @@ class Layers(object):
 
         # mask
         if mask is None:
-            mask = tf.fill([state_below_shape[0], 1], np.float32(1.))
+            mask = tf.fill([state_below.shape[0]], np.float32(1.))
         if init_state is None:
             init_state = tf.constant(0., shape=(n_samples, dim), dtype=tf.float32)  # DOUBT ? getting same ans for tf.variable and tf.constant
         if init_memory is None:
@@ -96,7 +95,7 @@ class Layers(object):
         def step(prev, elems):
             m_, x_ = elems
             h_, c_ = prev
-            preact = tf.matmul(h_, U)   # (64,512)*(512,2048) = (64,2048)
+            preact = tf.matmul(h_, U)   # (64,512)*(512,2048) = (64,2048) or (1,2048) in sampling
             preact = preact + x_
             i = tf.sigmoid(_slice(preact, 0, dim))  # (64,512)
             f = tf.sigmoid(_slice(preact, 1, dim))  # (64,512)
@@ -113,7 +112,7 @@ class Layers(object):
                 c = m_[:, None] * c + (1. - m_)[:, None] * c_
             return [h, c]
 
-        state_below = batch_matmul(state_below, tfparams[_p(prefix, 'W')]) + b  # (19,64,512)*(512,2048)+(2048,) = (19,64,2048)
+        state_below = batch_matmul(state_below, tfparams[_p(prefix, 'W')]) + b  # (19,64,512)*(512,2048)+(2048,) = (19,64,2048) or (m,2048) in sampling
 
         if one_step:
             rval = step(elems=[mask, state_below], prev=[init_state, init_memory])
@@ -174,10 +173,10 @@ class Layers(object):
                         init_memory=None, init_state=None,
                         trng=None, use_noise=None, mode=None,
                         **kwargs):
-        # state_below (t, m, dim_word), or (m, dim_word) in sampling
+        # state_below (t, m, dim_word), or (m (or 1? DOUBT), dim_word) in sampling
         # mask (t, m)
-        # context (m, f, dim_ctx), or (f, dim_word) in sampling
-        # init_memory, init_state (m, dim)
+        # context (m, f, dim_ctx), or (1, f, dim_ctx) in sampling
+        # init_memory, init_state (m (or 1? DOUBT), dim)
         # t = time steps
         # m = batch size
 
@@ -190,28 +189,27 @@ class Layers(object):
             if init_state is None:
                 raise ValueError('previous state must be provided')
 
-        state_below_shape = tf.shape(state_below)
         if state_below.shape.ndims == 3:
             n_samples = state_below.shape[1]
         else:
             n_samples = 1
+        dim = tfparams[_p(prefix, 'U')].shape[0]
 
         if mask is None:
-            mask = tf.fill([state_below_shape[0], 1], np.float32(1.))
+            mask = tf.fill([state_below.shape[0]], np.float32(1.))   # (m,) in sampling DOUBT ? (m, 1) or (m, )
         if init_state is None:
             init_state = tf.constant(0., shape=(n_samples, dim), dtype=tf.float32)  # DOUBT ? getting same ans for tf.variable and tf.constant
         if init_memory is None:
             init_memory = tf.constant(0., shape=(n_samples, dim), dtype=tf.float32)
 
-        dim = tfparams[_p(prefix, 'U')].shape[0]
         # projected context
-        pctx_ = batch_matmul(context, tfparams[_p(prefix, 'Wc_att')]) + tfparams[_p(prefix, 'b_att')]    # (64,28,2048)*(2048,2048)+(2048,) = (64,28,2048)
+        pctx_ = batch_matmul(context, tfparams[_p(prefix, 'Wc_att')]) + tfparams[_p(prefix, 'b_att')]    # (64,28,2048)*(2048,2048)+(2048,) = (64,28,2048) or (1,28,2048) in sampling
         if one_step:
             # tensor.dot will remove broadcasting dim
             # raise NotImplementedError()
             pass    # INCOMPLETE
         # projected x
-        state_below = batch_matmul(state_below, tfparams[_p(prefix, 'W')]) + tfparams[_p(prefix, 'b')]    # (19,64,512)*(512,2048)+(2048) = (19,64,2048)
+        state_below = batch_matmul(state_below, tfparams[_p(prefix, 'W')]) + tfparams[_p(prefix, 'b')]    # (19,64,512)*(512,2048)+(2048) = (19,64,2048) or (m,2048) in sampling
         Wd_att = tfparams[_p(prefix, 'Wd_att')]  # (512,2048)
         U_att = tfparams[_p(prefix, 'U_att')]    # (2048,1)
         c_att = tfparams[_p(prefix, 'c_att')] # (1,)
@@ -240,11 +238,11 @@ class Layers(object):
             else:
                 m_, x_ = elems
             h_, c_, _, _, _ = prev
-            preact = tf.matmul(h_, U)   # (64,512)*(512,2048) = (64,2048)
+            preact = tf.matmul(h_, U)   # (64,512)*(512,2048) = (64,2048) or (m,2048) in sampling
             preact = preact + x_
-            i = _slice(preact, 0, dim)  # (64,512)  (0-511)
-            f = _slice(preact, 1, dim)  # (64,512)  (512,1023)
-            o = _slice(preact, 2, dim)  # (64,512)  (1024-1535)
+            i = _slice(preact, 0, dim)  # (64,512)  (0-511) or (m,512) in sampling
+            f = _slice(preact, 1, dim)  # (64,512)  (512,1023)  or (m,512) in sampling
+            o = _slice(preact, 2, dim)  # (64,512)  (1024-1535) or (m,512) in sampling
             if options['use_dropout']:
                 i = i * _slice(dp_, 0, dim)
                 f = f * _slice(dp_, 1, dim)
@@ -252,16 +250,17 @@ class Layers(object):
             i = tf.sigmoid(i)
             f = tf.sigmoid(f)
             o = tf.sigmoid(o)
-            c = tf.tanh(_slice(preact, 3, dim))  # (64,512)  (1024-1535)
+            c = tf.tanh(_slice(preact, 3, dim))  # (64,512)  (1024-1535)    or (m,512) in sampling
             c = f * c_ + i * c
-            c = m_[:, None] * c + (1. - m_)[:, None] * c_
-            h = o * tf.tanh(c)
+            c = m_[:, None] * c + (1. - m_)[:, None] * c_   # (m,1)*(m,512) + (m,1)*(m,512) = (m,512) in sampling
+            h = o * tf.tanh(c)  # (m,512)*(m,512) = (m,512) in sampling
             h = m_[:, None] * h + (1. - m_)[:, None] * h_
             # attention
-            pstate_ = tf.matmul(h, Wd_att) # shape = (64,512)*(512,2048) = (64,2048)
+            pstate_ = tf.matmul(h, Wd_att) # shape = (64,512)*(512,2048) = (64,2048) or (m,2048) in sampling
             pctx_t = pctx_ + pstate_[:, None, :] # shape = (64,28,2048)+(64,?,2048) = (64,28,2048)  # DOUBT pctx_ += ??
+                #   (1,28,2048) + (m,?,2048) = (m,28,2048)
             pctx_t = tanh(pctx_t)
-            alpha = batch_matmul(pctx_t, U_att) + c_att    # (64,28,2048)*(2048,1) + (1,) = (64,28,1)
+            alpha = batch_matmul(pctx_t, U_att) + c_att    # (64,28,2048)*(2048,1) + (1,) = (64,28,1) or (m,28,1) in sampling
             alpha_pre = alpha
             alpha_shp = alpha.shape
             alpha = tf.nn.softmax(tf.reshape(alpha,[alpha_shp[0], alpha_shp[1]]))  # softmax # shape (64,28)
@@ -274,12 +273,13 @@ class Layers(object):
             return rval
 
         if options['use_dropout']:
-            dp_shape = tf.shape(state_below)
             if one_step:
+                dp_shape = state_below.shape
                 dp_mask = tf.cond(use_noise,
                                 lambda: tf.nn.dropout(tf.fill([dp_shape[0], 3 * dim], np.float32(0.5)), keep_prob=0.5),
                                 lambda: tf.fill([dp_shape[0], 3 * dim], np.float32(0.5)))
             else:
+                dp_shape = tf.shape(state_below)
                 dp_mask = tf.cond(use_noise,
                                 lambda: tf.nn.dropout(tf.fill([dp_shape[0], dp_shape[1], 3 * dim], np.float32(0.5)), keep_prob=0.5),
                                 lambda: tf.fill([dp_shape[0], dp_shape[1], 3 * dim], np.float32(0.5)))
