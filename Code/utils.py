@@ -62,6 +62,10 @@ def write_list_to_file(fname,data_list):
 		file.write(data+"\n")
 	file.close()
 
+def flatten_list_of_list(l):
+    # l is a list of list
+    return [item for sublist in l for item in sublist]
+
 def shuffle_array(array):
 	return rng_numpy.shuffle(array)
 

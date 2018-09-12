@@ -43,8 +43,8 @@ params = {
     'test_data_ids_path' : MSVD_DATA_IDS_TEST_PATH,
     'vocab_path' : MSVD_VOCAB_PATH,
     'reverse_vocab_path' : MSVD_REVERSE_VOCAB_PATH,
-    'mb_size_train' : 64,
-    'mb_size_test' : 128,
+    'mb_size_train' : 2, # 64
+    'mb_size_test' : 2, # 128
     'train_caps_path' : MSVD_VID_CAPS_TRAIN_PATH,
     'val_caps_path' : MSVD_VID_CAPS_VAL_PATH,
     'test_caps_path' : MSVD_VID_CAPS_TEST_PATH,
@@ -59,7 +59,7 @@ params = {
     'vocab_size' : 20000, # n_words
     'maxlen_caption' : 30,	# max length of the descprition
     'optimizer' : 'adadelta',
-    'batch_size' : 64,	# for trees use 25
+    'batch_size' : 2, # 64	# for trees use 25
     'metric' : 'everything',	# set to perplexity on DVS # blue, meteor, or both
     'use_dropout' : True,
     'selector' : True,
@@ -72,7 +72,7 @@ params = {
     'sampleFreq' : 100,
     'verbose' : True,
     'debug' : False,
-    'reload' : False,
+    'reload_model' : False,
     'from_dir' : '',
     'ctx_frames' : 28, # 26 when compare 
     'random_seed' : 1234,

@@ -329,6 +329,48 @@ class Model(object):
 
         return sample, sample_score, next_state, next_memory
 
+    def pred_probs(self, sess, engine, whichset, f_log_probs, verbose=True):
+        probs = []
+        n_done = 0
+        NLL = []
+        L = []
+        if whichset == 'train':
+            tags = engine.train_data_ids
+            iterator = engine.kf_train
+        elif whichset == 'val':
+            tags = engine.val_data_ids
+            iterator = engine.kf_val
+        elif whichset == 'test':
+            tags = engine.test_data_ids
+            iterator = engine.kf_test
+        else:
+            raise NotImplementedError()
+        n_samples = np.sum([len(index) for index in iterator])
+        for index in iterator:
+            tag = [tags[i] for i in index]
+            x, mask, ctx, ctx_mask = prepare_data(engine, tag, mode=whichset)
+            
+            pred_probs = sess.run(f_log_probs, feed_dict={
+                                        "word_seq_x:0": x,
+                                        "word_seq_mask:0": mask,
+                                        "ctx:0": ctx,
+                                        "ctx_mask:0": ctx_mask})
+            
+            L.append(mask.sum(0).tolist())
+            NLL.append((-1 * pred_probs).tolist())
+            probs.append(pred_probs.tolist())
+            n_done += len(tag)
+            if verbose:
+                sys.stdout.write('\rComputing LL on %d/%d examples' % (
+                    n_done, n_samples))
+                sys.stdout.flush()
+        print ""
+        probs = utils.flatten_list_of_list(probs)
+        NLL = utils.flatten_list_of_list(NLL)
+        L = utils.flatten_list_of_list(L)
+        perp = 2 ** (np.sum(NLL) / np.sum(L) / np.log(2))
+        return -1 * np.mean(probs), perp
+
     def sample_execute(self, sess, engine, options, tfparams, f_init, f_next, x, ctx, ctx_mask):
         stochastic = False
         # x = (t,64)

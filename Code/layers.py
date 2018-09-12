@@ -71,7 +71,7 @@ class Layers(object):
         dim = tfparams[_p(prefix, 'U')].shape[0]
         state_below_shape = tf.shape(state_below)
         if state_below.shape.ndims == 3:
-            n_samples = state_below.shape[1]
+            n_samples = state_below_shape[1]
         else:   
             n_samples = 1
 
@@ -79,9 +79,11 @@ class Layers(object):
         if mask is None:
             mask = tf.fill([state_below_shape[0]], np.float32(1.))
         if init_state is None:
-            init_state = tf.constant(0., shape=(n_samples, dim), dtype=tf.float32)  # DOUBT ? getting same ans for tf.variable and tf.constant
+            # init_state = tf.constant(0., shape=(n_samples, dim), dtype=tf.float32)  # DOUBT ? getting same ans for tf.variable and tf.constant
+            init_state = tf.fill([n_samples, dim], np.float32(0.))
         if init_memory is None:
-            init_memory = tf.constant(0., shape=(n_samples, dim), dtype=tf.float32)
+            # init_memory = tf.constant(0., shape=(n_samples, dim), dtype=tf.float32)
+            init_memory = tf.fill([n_samples, dim], np.float32(0.))
 
         def _slice(_x, n, dim):
             if _x.shape.ndims == 3:
@@ -192,7 +194,7 @@ class Layers(object):
 
         state_below_shape = tf.shape(state_below)
         if state_below.shape.ndims == 3:
-            n_samples = state_below.shape[1]
+            n_samples = state_below_shape[1]
         else:
             n_samples = 1
         dim = tfparams[_p(prefix, 'U')].shape[0]
@@ -224,9 +226,13 @@ class Layers(object):
             raise NotImplementedError()
         U = tfparams[_p(prefix, 'U')]    # (512,2048)
 
-        init_alpha = tf.constant(0.,shape=(n_samples, pctx_.shape[1]), dtype=tf.float32)
-        init_ctx = tf.constant(0.,shape=(n_samples, U.shape[1]), dtype=tf.float32)
-        init_beta = tf.constant(0.,shape=(n_samples, ), dtype=tf.float32)
+        pctx_shape = tf.shape(pctx_)
+        # init_alpha = tf.constant(0.,shape=(n_samples, pctx_shape[1]), dtype=tf.float32)
+        init_alpha = tf.fill([n_samples, pctx_shape[1]], np.float32(0.))
+        # init_ctx = tf.constant(0.,shape=(n_samples, U.shape[1]), dtype=tf.float32)
+        init_ctx = tf.fill([n_samples, U.shape[1]], np.float32(0.))
+        # init_beta = tf.constant(0.,shape=(n_samples, ), dtype=tf.float32)
+        init_beta = tf.fill([n_samples,], np.float32(0.))
 
         def _slice(_x, n, dim):
             if _x.shape.ndims == 3:

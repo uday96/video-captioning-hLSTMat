@@ -1,6 +1,7 @@
 import time
 import numpy as np
 import utils, config
+from collections import OrderedDict
 
 class Movie2Caption(object):
             
@@ -41,6 +42,23 @@ class Movie2Caption(object):
             raise NotImplementedError()
         return vid_caps[vid_id][cap_id]
 
+    def prepare_data_for_blue(self, whichset):
+        # assume one-to-one mapping between ids and features
+        feats = []
+        feats_mask = []
+        if whichset == 'val':
+            ids = self.val_ids
+        elif whichset == 'test':
+            ids = self.test_ids
+        elif whichset == 'train':
+            ids = self.train_ids
+        for i, vidID in enumerate(ids):
+            feat = self.get_video_features(vidID)
+            feats.append(feat)
+            feat_mask = self.get_ctx_mask(feat)
+            feats_mask.append(feat_mask)
+        return feats, feats_mask
+
     def get_ctx_mask(self, ctx):
         if ctx.ndim == 3:
             rval = (ctx[:,:,:self.ctx_dim].sum(axis=-1) != 0).astype('int32').astype('float32')
@@ -55,12 +73,22 @@ class Movie2Caption(object):
             import pdb; pdb.set_trace()
             raise NotImplementedError()
         return rval
+
+    def get_vid_ids(self, IDs):
+        vid_ids = OrderedDict()
+        for i, ID in enumerate(IDs):
+            vidID, capID = ID.split('|')
+            vid_ids[vidID] = None
+        return vid_ids.keys()
         
     def load_data(self):
         print('loading {}-{} features'.format(self.dataset_name,self.cnn_name))
         self.train_data_ids = utils.read_file_to_list(self.train_data_ids_path)
         self.val_data_ids = utils.read_file_to_list(self.val_data_ids_path)
         self.test_data_ids = utils.read_file_to_list(self.test_data_ids_path)
+        self.train_data_ids = self.train_data_ids[:6]   # ONLY FOR DEBUG - REMOVE
+        self.val_data_ids = self.val_data_ids[:6]
+        self.test_data_ids = self.test_data_ids[:6]
         self.train_caps = utils.read_from_json(self.train_caps_path)
         self.val_caps = utils.read_from_json(self.val_caps_path)
         self.test_caps = utils.read_from_json(self.test_caps_path)
@@ -71,6 +99,9 @@ class Movie2Caption(object):
             self.ctx_dim = 2048
         else:
             raise NotImplementedError()
+        self.train_ids = self.get_vid_ids(self.train_data_ids)
+        self.val_ids = self.get_vid_ids(self.val_data_ids)
+        self.test_ids = self.get_vid_ids(self.test_data_ids)
         self.kf_train = utils.generate_minibatch_idx(len(self.train_data_ids), self.mb_size_train)
         self.kf_val = utils.generate_minibatch_idx(len(self.val_data_ids), self.mb_size_test)   #TODO - verify test or val
         self.kf_test = utils.generate_minibatch_idx(len(self.test_data_ids), self.mb_size_test)
