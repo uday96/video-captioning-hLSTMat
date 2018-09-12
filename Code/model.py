@@ -123,10 +123,11 @@ class Model(object):
         init_state = [bo_init_state_sampler, to_init_state_sampler]
         init_memory = [bo_init_memory_sampler, to_init_memory_sampler]
 
-        # # if it's the first word, emb should be all zero
-        # emb = tensor.switch(x[:, None] < 0, tensor.alloc(0., 1, tparams['Wemb'].shape[1]),
-        #                     tparams['Wemb'][x])
-        inputs = tf.nn.embedding_lookup(tfparams['Wemb'], x)    # (1,512) ^ INCOMPLETE
+        # # if it's the first word, embedding should be all zero
+        inputs = tf.cond(tf.reduce_any(x[:, None] < 0),
+                        lambda: tf.constant(0.,shape=(1,tfparams['Wemb'].shape[1]), dtype=tf.float32),
+                        lambda: tf.nn.embedding_lookup(tfparams['Wemb'], x))    # (m,512)
+
         bo_lstm = self.layers.get_layer('lstm_cond')[1](tfparams, inputs, options,
                                                         prefix='bo_lstm',
                                                         mask=None, context=ctx,
@@ -170,9 +171,193 @@ class Model(object):
         next_probs = tf.nn.softmax(logit)
         # next_sample = trng.multinomial(pvals=next_probs).argmax(1)    # INCOMPLETE , DOUBT : why is multinomial needed?
         next_sample = tf.multinomial(next_probs,1) # draw samples with given probabilities (1,1)
-
+        # next_sample = tf.reshape(next_sample,[1]) DOUBT?
         # next word probability
         print 'building f_next...',
         f_next = [next_probs, next_sample] + next_state + next_memory
         print 'done'
         return f_init, f_next
+
+    def gen_sample(self, sess, tfparams, f_init, f_next, ctx0, ctx_mask, options,
+                   k=1, maxlen=30, stochastic=False, restrict_voc=False):
+        '''
+        ctx0: (28,2048) (f, dim_ctx)
+        ctx_mask: (28,) (f, )
+
+        restrict_voc: set the probability of outofvoc words with 0, renormalize
+        '''
+        if k > 1:
+            assert not stochastic, 'Beam search does not support stochastic sampling'
+
+        sample = []
+        sample_score = []
+        if stochastic:
+            sample_score = 0
+
+        live_k = 1
+        dead_k = 0
+
+        hyp_samples = [[]] * live_k
+        hyp_scores = np.zeros(live_k).astype('float32')
+        hyp_states = []
+        hyp_memories = []
+
+        # [(28,2048),(512,),(512,),(512,),(512,)]
+        rval = sess.run(f_init, feed_dict={
+                    "ctx_sampler:0": ctx0,
+                    "ctx_mask_sampler:0": ctx_mask
+                })
+        ctx0 = rval[0]
+
+        next_state = []
+        next_memory = []
+        n_layers_lstm = 2
+
+        for lidx in xrange(n_layers_lstm):
+            next_state.append(rval[1 + lidx])
+            next_state[-1] = next_state[-1].reshape([live_k, next_state[-1].shape[0]])
+        for lidx in xrange(n_layers_lstm):
+            next_memory.append(rval[1 + n_layers_lstm + lidx])
+            next_memory[-1] = next_memory[-1].reshape([live_k, next_memory[-1].shape[0]])
+        next_w = -1 * np.ones((1,)).astype('int32')
+        for ii in xrange(maxlen):
+            # return [(1, vocab_size), (1,), (1, 512), (1, 512), (1, 512), (1, 512)]
+            # next_w: vector (1,)
+            # ctx: matrix   (28, 2048)
+            # ctx_mask: vector  (28,)
+            # next_state: [matrix] [(1, 512), (1, 512)]
+            # next_memory: [matrix] [(1, 512), (1, 512)]
+            rval = sess.run(f_next, feed_dict={
+                        "x_sampler:0": next_w,
+                        "ctx_sampler:0": ctx0,
+                        "ctx_mask_sampler:0": ctx_mask,
+                        'bo_init_state_sampler:0': next_state[0],
+                        'to_init_state_sampler:0': next_state[1],
+                        'bo_init_memory_sampler:0': next_memory[0],
+                        'to_init_memory_sampler:0': next_memory[1]
+                    })
+            next_p = rval[0]
+            if restrict_voc:
+                raise NotImplementedError()
+            next_w = rval[1]  # already argmax sorted
+            next_state = []
+            for lidx in xrange(n_layers_lstm):
+                next_state.append(rval[2 + lidx])
+            next_memory = []
+            for lidx in xrange(n_layers_lstm):
+                next_memory.append(rval[2 + n_layers_lstm + lidx])
+            if stochastic:
+                sample.append(next_w[0])  # take the most likely one
+                sample_score += next_p[0, next_w[0]]
+                if next_w[0] == 0:
+                    break
+            else:
+                # the first run is (1,vocab_size)
+                cand_scores = hyp_scores[:, None] - np.log(next_p)
+                cand_flat = cand_scores.flatten()
+                ranks_flat = cand_flat.argsort()[:(k - dead_k)]
+
+
+                voc_size = next_p.shape[1]
+                trans_indices = ranks_flat / voc_size  # index of row
+                word_indices = ranks_flat % voc_size  # index of col
+                costs = cand_flat[ranks_flat]
+
+                new_hyp_samples = []
+                new_hyp_scores = np.zeros(k - dead_k).astype('float32')
+                new_hyp_states = []
+                for lidx in xrange(n_layers_lstm):
+                    new_hyp_states.append([])
+                new_hyp_memories = []
+                for lidx in xrange(n_layers_lstm):
+                    new_hyp_memories.append([])
+
+                for idx, [ti, wi] in enumerate(zip(trans_indices, word_indices)):
+                    new_hyp_samples.append(hyp_samples[ti] + [wi])
+                    new_hyp_scores[idx] = copy.copy(costs[idx])
+                    for lidx in xrange(n_layers_lstm):
+                        new_hyp_states[lidx].append(copy.copy(next_state[lidx][ti]))
+                    for lidx in xrange(n_layers_lstm):
+                        new_hyp_memories[lidx].append(copy.copy(next_memory[lidx][ti]))
+
+                # check the finished samples
+                new_live_k = 0
+                hyp_samples = []
+                hyp_scores = []
+                hyp_states = []
+                for lidx in xrange(n_layers_lstm):
+                    hyp_states.append([])
+                hyp_memories = []
+                for lidx in xrange(n_layers_lstm):
+                    hyp_memories.append([])
+
+                for idx in xrange(len(new_hyp_samples)):
+                    if new_hyp_samples[idx][-1] == 0:
+                        sample.append(new_hyp_samples[idx])
+                        sample_score.append(new_hyp_scores[idx])
+                        dead_k += 1
+                    else:
+                        new_live_k += 1
+                        hyp_samples.append(new_hyp_samples[idx])
+                        hyp_scores.append(new_hyp_scores[idx])
+                        for lidx in xrange(n_layers_lstm):
+                            hyp_states[lidx].append(new_hyp_states[lidx][idx])
+                        for lidx in xrange(n_layers_lstm):
+                            hyp_memories[lidx].append(new_hyp_memories[lidx][idx])
+                hyp_scores = np.array(hyp_scores)
+                live_k = new_live_k
+
+                if new_live_k < 1:
+                    break
+                if dead_k >= k:
+                    break
+
+                next_w = np.array([w[-1] for w in hyp_samples])
+                next_state = []
+                for lidx in xrange(n_layers_lstm):
+                    next_state.append(np.array(hyp_states[lidx]))
+                next_memory = []
+                for lidx in xrange(n_layers_lstm):
+                    next_memory.append(np.array(hyp_memories[lidx]))
+
+        if not stochastic:
+            # dump every remaining one
+            if live_k > 0:
+                for idx in xrange(live_k):
+                    sample.append(hyp_samples[idx])
+                    sample_score.append(hyp_scores[idx])
+
+        return sample, sample_score, next_state, next_memory
+
+    def sample_execute(self, sess, engine, options, tfparams, f_init, f_next, x, ctx, ctx_mask):
+        stochastic = False
+        # x = (t,64)
+        # ctx = (64,28,2048)
+        # ctx_mask = (64,28)
+        for jj in xrange(np.minimum(10, x.shape[1])):
+            sample, score, _, _ = self.gen_sample(sess, tfparams, f_init, f_next, ctx[jj], ctx_mask[jj],
+                                                  options, k=5, maxlen=30, stochastic=stochastic)
+            if not stochastic:
+                best_one = np.argmin(score)
+                sample = sample[best_one]
+            else:
+                sample = sample
+            print 'Truth ', jj, ': ',
+            for vv in x[:, jj]:
+                if vv == 0:
+                    break
+                if vv in engine.reverse_vocab:
+                    print engine.reverse_vocab[vv],
+                else:
+                    print 'UNK',
+            print ""
+            for kk, ss in enumerate([sample]):
+                print 'Sample (', jj, ') ', ': ',
+                for vv in ss:
+                    if vv == 0:
+                        break
+                    if vv in engine.reverse_vocab:
+                        print engine.reverse_vocab[vv],
+                    else:
+                        print 'UNK',
+            print ""

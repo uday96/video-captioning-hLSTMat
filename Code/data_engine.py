@@ -104,11 +104,11 @@ def prepare_data(engine, IDs, mode="train"):
         seqs = new_seqs
         if len(lengths) < 1:
             return None, None, None, None
-    y = np.asarray(feat_list)   # shape (batch_size,n_frames=28,ctx_dim=2048)
+    y = np.asarray(feat_list, dtype='float32')   # shape (batch_size,n_frames=28,ctx_dim=2048)
     y_mask = engine.get_ctx_mask(y)
     n_samples = len(seqs)
     maxlen = np.max(lengths)+1
-    x = np.zeros((maxlen, n_samples)).astype('int64')   # storing captions coloumn-wise , shape (max_seq_len,batch_size)
+    x = np.zeros((maxlen, n_samples)).astype('int32')   # storing captions coloumn-wise , shape (max_seq_len,batch_size)
     x_mask = np.zeros((maxlen, n_samples)).astype('float32')
     for idx, s in enumerate(seqs):
         x[:lengths[idx],idx] = s

@@ -81,11 +81,11 @@ def train(model_options,
 
     CTX_SAMPLER = tf.placeholder(tf.float32, shape=(ctx_frames, ctx_dim), name='ctx_sampler')
     CTX_MASK_SAMPLER = tf.placeholder(tf.float32, shape=(ctx_frames), name='ctx_mask_sampler')
-    X_SAMPLER = tf.placeholder(tf.int32, shape=(1), name='x_sampler')
-    BO_INIT_STATE_SAMPLER = tf.placeholder(tf.float32, shape=(1,lstm_dim), name='bo_init_state_sampler')
-    TO_INIT_STATE_SAMPLER = tf.placeholder(tf.float32, shape=(1,lstm_dim), name='to_init_state_sampler')
-    BO_INIT_MEMORY_SAMPLER = tf.placeholder(tf.float32, shape=(1,lstm_dim), name='bo_init_memory_sampler')
-    TO_INIT_MEMORY_SAMPLER = tf.placeholder(tf.float32, shape=(1,lstm_dim), name='to_init_memory_sampler')
+    X_SAMPLER = tf.placeholder(tf.int32, shape=(None,), name='x_sampler')   # DOUBT 1 or None ?
+    BO_INIT_STATE_SAMPLER = tf.placeholder(tf.float32, shape=(None,lstm_dim), name='bo_init_state_sampler')
+    TO_INIT_STATE_SAMPLER = tf.placeholder(tf.float32, shape=(None,lstm_dim), name='to_init_state_sampler')
+    BO_INIT_MEMORY_SAMPLER = tf.placeholder(tf.float32, shape=(None,lstm_dim), name='bo_init_memory_sampler')
+    TO_INIT_MEMORY_SAMPLER = tf.placeholder(tf.float32, shape=(None,lstm_dim), name='to_init_memory_sampler')
 
     # create tensorflow variables
     print 'buliding model'
@@ -133,10 +133,6 @@ def train(model_options,
     # Launch the graph
     with tf.Session() as sess:
         sess.run(var_init)
-        # af = sess.run(f_init, feed_dict={
-        #                         CTX_SAMPLER: ctx_tv[0],
-        #                         CTX_MASK_SAMPLER: ctx_mask_tv[0]})
-        # return af
         for eidx in xrange(max_epochs):
             n_samples = 0
             train_costs = []
@@ -178,7 +174,7 @@ def train(model_options,
                 else:
                     train_error = train_error * 0.95 + cost * 0.05
                 train_costs.append(cost)
-                dispFreq = 1
+                # dispFreq = 1
                 if np.mod(uidx, dispFreq) == 0:
                     print 'Epoch: ', eidx, \
                         ', Update: ', uidx, \
@@ -212,17 +208,22 @@ def train(model_options,
 
                 if np.mod(uidx, saveFreq) == 0:
                     pass
-                sampleFreq = 1
+                # sampleFreq = 10
                 if np.mod(uidx, sampleFreq) == 0:
                     sess.run(tf.assign(use_noise, False))
                     print '------------- sampling from train ----------'
-                    x_s = x
-                    mask_s = mask
-                    ctx_s = ctx
-                    ctx_mask_s = ctx_mask
-                    # model.sample_execute(engine, model_options, tparams,
-                    #                           f_init, f_next, x_s, ctx_s, ctx_mask_s, trng)
-                return
+                    x_s = x     # (t,m)
+                    mask_s = mask   # (t,m)
+                    ctx_s = ctx     # (m,28,2048)
+                    ctx_mask_s = ctx_mask   # (m,28)
+                    model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
+                    print '------------- sampling from valid ----------'
+                    idx = engine.kf_val[np.random.randint(1, len(engine.kf_val) - 1)]
+                    tags = [engine.val_data_ids[index] for index in idx]
+                    x_s, mask_s, ctx_s, mask_ctx_s = data_engine.prepare_data(engine, tags,"val")
+                    model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
+                    print ""
+                    return
     return
 
 def train_util(params):
