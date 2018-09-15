@@ -187,12 +187,17 @@ def prepare_data_ids(vid_caps_path, ids_save_path):
 	utils.write_list_to_file(ids_save_path,data_ids)
 
 if __name__ == '__main__':
+	has_ids_list = True
+	seperate_ctx = False
 	print("removing empty lines in original corpus...")
 	preproc_csv(config.MSVD_CSV_DATA_PATH,config.MSVD_PREPROC_CSV_DATA_PATH)
 	print("loading proccessed corpus...")
 	csv_data = utils.read_csv_data(config.MSVD_PREPROC_CSV_DATA_PATH)
 	print("reading video clips ids...")
-	vid_ids_list = utils.read_dir_files(config.MSVD_VIDEO_DATA_PATH)
+	if not has_ids_list:
+		vid_ids_list = utils.read_dir_files(config.MSVD_VIDEO_DATA_PATH)	# read dataset vid ids from video clips directory
+	else:
+		vid_ids_list = utils.read_file_to_list(config.DATA_DIR+"present_vid_ids.txt")	# read dataset vid ids from text file
 	assert len(vid_ids_list)==config.TOTAL_VIDS
 	print("filtering clips in df...")
 	present_vid_ids, missing_vid_ids, present_vid_ids_csv = filter_clips(csv_data,vid_ids_list)
@@ -207,12 +212,13 @@ if __name__ == '__main__':
 	vocab, _ = gen_vocab(train_df,"train")
 	_, _ = gen_vocab(val_df,"val")
 	_, _ = gen_vocab(test_df,"test")
-	print("saving train data resnet features as seperate files...")
-	save_diff_files(config.MSVD_FRAMES_FEATS_TRAIN_PATH, config.MSVD_FEATS_RESNET_DIR)
-	print("saving val data resnet features as seperate files...")
-	save_diff_files(config.MSVD_FRAMES_FEATS_VAL_PATH, config.MSVD_FEATS_RESNET_DIR)
-	print("saving test data resnet features as seperate files...")
-	save_diff_files(config.MSVD_FRAMES_FEATS_TEST_PATH, config.MSVD_FEATS_RESNET_DIR)
+	if seperate_ctx:
+		print("saving train data resnet features as seperate files...")
+		save_diff_files(config.MSVD_FRAMES_FEATS_TRAIN_PATH, config.MSVD_FEATS_RESNET_DIR)
+		print("saving val data resnet features as seperate files...")
+		save_diff_files(config.MSVD_FRAMES_FEATS_VAL_PATH, config.MSVD_FEATS_RESNET_DIR)
+		print("saving test data resnet features as seperate files...")
+		save_diff_files(config.MSVD_FRAMES_FEATS_TEST_PATH, config.MSVD_FEATS_RESNET_DIR)
 	print("generating train data vid+seq ids...")
 	prepare_data_ids(config.MSVD_VID_CAPS_TRAIN_PATH, config.MSVD_DATA_IDS_TRAIN_PATH)
 	print("generating val data vid+seq ids...")
