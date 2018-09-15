@@ -65,7 +65,7 @@ params = {
     'optimizer' : 'adadelta',
     'batch_size' : 1, # 64	# for trees use 25
     'metric' : 'everything',	# set to perplexity on DVS # blue, meteor, or both
-    'use_dropout' : True,
+    'use_dropout' : True,   #True
     'selector' : True,
     'ctx2out' : True,
     'prev2out' : True,

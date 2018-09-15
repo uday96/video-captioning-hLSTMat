@@ -98,13 +98,15 @@ def train(model_options,
     # create tensorflow variables
     print 'buliding model'
     tfparams = utils.init_tfparams(params)
+
     use_noise, COST, extra = model.build_model(tfparams, model_options, X, MASK, CTX, CTX_MASK)
     ALPHAS = extra[1]   # (t,64,28)
     BETAS = extra[2]    # (t,64)
 
     print 'buliding sampler'
-    f_init, f_next = model.build_sampler(tfparams, model_options, use_noise, CTX_SAMPLER, CTX_MASK_SAMPLER,
-                                X_SAMPLER, BO_INIT_STATE_SAMPLER, TO_INIT_STATE_SAMPLER, BO_INIT_MEMORY_SAMPLER, TO_INIT_MEMORY_SAMPLER)
+    f_init, f_next = model.build_sampler(tfparams, model_options, use_noise,
+                                CTX_SAMPLER, CTX_MASK_SAMPLER, X_SAMPLER, BO_INIT_STATE_SAMPLER,
+                                TO_INIT_STATE_SAMPLER, BO_INIT_MEMORY_SAMPLER, TO_INIT_MEMORY_SAMPLER)
 
     print 'building f_log_probs'
     f_log_probs = -COST
@@ -135,37 +137,15 @@ def train(model_options,
     print 'building f_alpha'
     f_alpha = [ALPHAS, BETAS]
 
-    print 'compute grad'
+    print 'check trainables'
     wrt = utils.itemlist(tfparams)
     trainables = tf.trainable_variables()
     assert len(wrt)==len(trainables)
-    grads = tf.gradients(COST, wrt)
-    if isinstance(grads[0], ops.IndexedSlices):
-        print 'converting %s to '%grads[0].name,
-        grads[0] = tf.convert_to_tensor(grads[0])
-        print '(dense) %s , shape:'%grads[0].name, grads[0].shape
-    # grads, _ = tf.clip_by_global_norm(grads, clip_norm=1.0)
-    if clip_c > 0.:
-        g2 = 0.
-        for g in grads:
-            g2 += tf.reduce_sum(tf.square(g))
-        new_grads = []
-        for g in grads:
-            new_grads.append(tf.cond(g2 > (clip_c**2),
-                                    lambda : g / tf.sqrt(g2) * clip_c,
-                                    lambda : g))
-        grads = new_grads
 
     print 'build train fns'
-    # UPDATE_OPS = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-    # with tf.control_dependencies(UPDATE_OPS):
-    #     optimizer = tf.train.AdadeltaOptimizer(learning_rate=lrate).minimize(COST)
-    grad_var_pairs = zip(grads, wrt)
-    global_step = tf.Variable(0, trainable=False, dtype=tf.int32)
-    lrate = tf.train.exponential_decay(lrate, global_step, decay_steps=15000, decay_rate=0.1, staircase=True)
-    # optimizer = tf.train.AdadeltaOptimizer(learning_rate=lrate)
-    optimizer = tf.train.GradientDescentOptimizer(learning_rate=lrate)
-    optimizer_op = optimizer.apply_gradients(grad_var_pairs,global_step=global_step)    
+    UPDATE_OPS = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    with tf.control_dependencies(UPDATE_OPS):
+        optimizer = tf.train.AdadeltaOptimizer(learning_rate=1.0, rho=0.95, epsilon=1e-6).minimize(loss=COST, var_list=wrt)
 
     # Initialize all variables
     var_init = tf.global_variables_initializer()
@@ -227,13 +207,11 @@ def train(model_options,
                     continue
 
                 ud_start = time.time()
-                # writer = tf.summary.FileWriter("graph_optimizer", sess.graph)
-                sess.run(optimizer_op, feed_dict={
+                sess.run(optimizer, feed_dict={
                                         X: x,
                                         MASK: mask,
                                         CTX: ctx,
                                         CTX_MASK: ctx_mask})
-                # writer.close()
                 ud_duration = time.time() - ud_start
 
                 # writer = tf.summary.FileWriter("graph_cost", sess.graph)

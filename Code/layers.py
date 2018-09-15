@@ -77,13 +77,13 @@ class Layers(object):
 
         # mask
         if mask is None:
-            mask = tf.fill([state_below_shape[0]], np.float32(1.))  # CHECK
+            mask = tf.ones(shape=[state_below_shape[0]], dtype=tf.float32)  # CHECK
         if init_state is None:
             # init_state = tf.constant(0., shape=(n_samples, dim), dtype=tf.float32)  # DOUBT ? getting same ans for tf.variable and tf.constant
-            init_state = tf.fill([n_samples, dim], np.float32(0.))
+            init_state = tf.zeros(shape=[n_samples, dim], dtype=tf.float32)
         if init_memory is None:
             # init_memory = tf.constant(0., shape=(n_samples, dim), dtype=tf.float32)
-            init_memory = tf.fill([n_samples, dim], np.float32(0.))
+            init_memory = tf.zeros(shape=[n_samples, dim], dtype=tf.float32)
 
         def _slice(_x, n, dim):
             if _x.shape.ndims == 3:
@@ -200,11 +200,11 @@ class Layers(object):
         dim = tfparams[_p(prefix, 'U')].shape[0]
 
         if mask is None:
-            mask = tf.fill([state_below_shape[0]], np.float32(1.), name="mask_fill")   # (m,) in sampling DOUBT ? (m, 1) or (m, ) CHECK VERIFIED
+            mask = tf.ones(shape=[state_below_shape[0]], dtype=tf.float32, name="mask_fill")   # (m,) in sampling DOUBT ? (m, 1) or (m, ) CHECK VERIFIED
         if init_state is None:
-            init_state = tf.constant(0., shape=(n_samples, dim), dtype=tf.float32, name="init_state_const")  # DOUBT ? getting same ans for tf.variable and tf.constant
+            init_state = tf.zeros(shape=(n_samples, dim), dtype=tf.float32, name="init_state_const")  # DOUBT ? getting same ans for tf.variable and tf.constant
         if init_memory is None:
-            init_memory = tf.constant(0., shape=(n_samples, dim), dtype=tf.float32, name="init_memory_const")
+            init_memory = tf.zeros(0., shape=(n_samples, dim), dtype=tf.float32, name="init_memory_const")
 
         # projected context
         with tf.name_scope("pctx_"):
@@ -228,12 +228,9 @@ class Layers(object):
         U = tfparams[_p(prefix, 'U')]    # (512,2048)
 
         pctx_shape = tf.shape(pctx_, name="pctx_shape")
-        # init_alpha = tf.constant(0.,shape=(n_samples, pctx_shape[1]), dtype=tf.float32)
-        init_alpha = tf.fill([n_samples, pctx_shape[1]], np.float32(0.), name="init_alpha_fill")
-        # init_ctx = tf.constant(0.,shape=(n_samples, U.shape[1]), dtype=tf.float32)
-        init_ctx = tf.fill([n_samples, U.shape[1]], np.float32(0.), name="init_ctx_fill")
-        # init_beta = tf.constant(0.,shape=(n_samples, ), dtype=tf.float32)
-        init_beta = tf.fill([n_samples,], np.float32(0.), name="init_beta_fill")
+        init_alpha = tf.zeros(shape=(n_samples, pctx_shape[1]), dtype=tf.float32, name="init_alpha_fill")
+        init_ctx = tf.zeros(shape=(n_samples, U.shape[1]), dtype=tf.float32, name="init_ctx_fill")
+        init_beta = tf.zeros(shape=(n_samples,), dtype=tf.float32, name="init_beta_fill")
 
         def _slice(_x, n, dim):
             if _x.shape.ndims == 3:

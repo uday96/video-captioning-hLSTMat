@@ -39,7 +39,12 @@ class Model(object):
         n_timesteps = x_shape[0]
         n_samples = x_shape[1]
         # get word embeddings
-        inputs = tf.nn.embedding_lookup(tfparams['Wemb'], x, name="inputs_emb_lookup")    # (num_steps,64,512)
+        emb = tf.nn.embedding_lookup(tfparams['Wemb'], x, name="inputs_emb_lookup")    # (num_steps,64,512)
+        emb_shape = tf.shape(emb)
+        indices = tf.expand_dims(tf.range(1,emb_shape[0]), axis=1)
+        emb_shifted = tf.scatter_nd(indices, emb[:-1], emb_shape)
+        emb = emb_shifted
+
         # count num_frames==28
         with tf.name_scope("ctx_mean"):
             with tf.name_scope("counts"):
@@ -47,14 +52,17 @@ class Model(object):
             ctx_ = ctx
             ctx0 = ctx_     # (64,28,2048)
             ctx_mean = tf.reduce_sum(ctx0, axis=1, name="reduce_sum_ctx") / counts  #mean pooling of {vi}   # (64,2048)
+
         # initial state/cell
         with tf.name_scope("init_state"):
             init_state = self.layers.get_layer('ff')[1](tfparams, ctx_mean, options, prefix='ff_state', activ='tanh')   # (64,512)
+
         with tf.name_scope("init_memory"):
             init_memory = self.layers.get_layer('ff')[1](tfparams, ctx_mean, options, prefix='ff_memory', activ='tanh') # (64,512)
+
         # hstltm = self.layers.build_hlstm(['bo_lstm','to_lstm'], inputs, n_timesteps, init_state, init_memory)
         with tf.name_scope("bo_lstm"):
-            bo_lstm = self.layers.get_layer('lstm_cond')[1](tfparams, inputs, options,
+            bo_lstm = self.layers.get_layer('lstm_cond')[1](tfparams, emb, options,
                                                             prefix='bo_lstm',
                                                             mask=mask, context=ctx0,
                                                             one_step=False,
@@ -77,7 +85,7 @@ class Model(object):
         # compute word probabilities
         logit = self.layers.get_layer('ff')[1](tfparams, bo_lstm_h, options, prefix='ff_logit_bo', activ='linear')  # (t,64,512)*(512,512) = (t,64,512)
         if options['prev2out']:
-            logit += inputs
+            logit += emb
         if options['ctx2out']:
             to_lstm_h *= (1-betas[:, :, None])  # (t,64,512)*(t,64,1)
             ctxs_beta = self.layers.get_layer('ff')[1](tfparams, ctxs, options, prefix='ff_logit_ctx', activ='linear')  # (t,64,2048)*(2048,512) = (t,64,512)
@@ -110,13 +118,12 @@ class Model(object):
         ctx = ctx_
         ctx_mean = tf.reduce_sum(ctx, axis=0) / counts  # (2048,)
         ctx = tf.expand_dims(ctx, 0)  # (1,28,2048)
-        
+
         # initial state/cell
         bo_init_state = self.layers.get_layer('ff')[1](tfparams, ctx_mean, options, prefix='ff_state', activ='tanh')    # (512,)
         bo_init_memory = self.layers.get_layer('ff')[1](tfparams, ctx_mean, options, prefix='ff_memory', activ='tanh')  # (512,)
-        
-        to_init_state = tf.constant(0., shape=(options['lstm_dim'],), dtype=tf.float32)  # DOUBT : constant or not? # (512,)
-        to_init_memory = tf.constant(0., shape=(options['lstm_dim'],), dtype=tf.float32)    # (512,)
+        to_init_state = tf.zeros(shape=(options['lstm_dim'],), dtype=tf.float32)  # DOUBT : constant or not? # (512,)
+        to_init_memory = tf.zeros(shape=(options['lstm_dim'],), dtype=tf.float32)    # (512,)
         init_state = [bo_init_state, to_init_state]
         init_memory = [bo_init_memory, to_init_memory]
 
@@ -128,11 +135,11 @@ class Model(object):
         init_memory = [bo_init_memory_sampler, to_init_memory_sampler]
 
         # # if it's the first word, embedding should be all zero
-        inputs = tf.cond(tf.reduce_any(x[:, None] < 0),
-                        lambda: tf.constant(0.,shape=(1,tfparams['Wemb'].shape[1]), dtype=tf.float32),
+        emb = tf.cond(tf.reduce_any(x[:, None] < 0),
+                        lambda: tf.zeros(shape=(1,tfparams['Wemb'].shape[1]), dtype=tf.float32),
                         lambda: tf.nn.embedding_lookup(tfparams['Wemb'], x))    # (m,512)
 
-        bo_lstm = self.layers.get_layer('lstm_cond')[1](tfparams, inputs, options,
+        bo_lstm = self.layers.get_layer('lstm_cond')[1](tfparams, emb, options,
                                                         prefix='bo_lstm',
                                                         mask=None, context=ctx,
                                                         one_step=True,
@@ -161,7 +168,7 @@ class Model(object):
         # compute word probabilities
         logit = self.layers.get_layer('ff')[1](tfparams, bo_lstm_h, options, prefix='ff_logit_bo', activ='linear')  # (1,512)*(512,512) = (1,512)
         if options['prev2out']:
-            logit += inputs
+            logit += emb
         if options['ctx2out']:
             to_lstm_h *= (1-betas[:, None])  # (1,512)*(1,1) = (1,512)
             ctxs_beta = self.layers.get_layer('ff')[1](tfparams, ctxs, options, prefix='ff_logit_ctx', activ='linear')  # (1,2048)*(2048,512) = (1,512)
