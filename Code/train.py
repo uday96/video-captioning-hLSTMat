@@ -7,6 +7,7 @@ import data_engine
 import tensorflow as tf
 import numpy as np
 import metrics
+from tensorflow.python.framework import ops
 
 def train(model_options,
         dataset_name = 'msvd',
@@ -28,6 +29,10 @@ def train(model_options,
         lstm_dim = 512,   # lstm unit size
         patience = 20,
         max_epochs = 500,
+        decay_c = 1e-4,
+        alpha_entropy_r = 0.,
+        alpha_c = 0.70602,
+        clip_c = 10.,
         lrate = 0.0001,
         vocab_size = 20000, # n_words
         maxlen_caption = 30,  # max length of the descprition
@@ -94,8 +99,8 @@ def train(model_options,
     print 'buliding model'
     tfparams = utils.init_tfparams(params)
     use_noise, COST, extra = model.build_model(tfparams, model_options, X, MASK, CTX, CTX_MASK)
-    ALPHAS = extra[1]
-    BETAS = extra[2]
+    ALPHAS = extra[1]   # (t,64,28)
+    BETAS = extra[2]    # (t,64)
 
     print 'buliding sampler'
     f_init, f_next = model.build_sampler(tfparams, model_options, use_noise, CTX_SAMPLER, CTX_MASK_SAMPLER,
@@ -104,13 +109,63 @@ def train(model_options,
     print 'building f_log_probs'
     f_log_probs = -COST
 
+    COST = tf.reduce_mean(COST, name="LOSS")
+    if decay_c > 0.:
+        decay_c = tf.Variable(np.float32(decay_c), trainable=False, name='decay_c')
+        weight_decay = 0.
+        for kk, vv in tfparams.iteritems():
+            weight_decay += tf.reduce_sum(vv ** 2)
+        weight_decay *= decay_c
+        COST += weight_decay
+
+    if alpha_c > 0.:
+        alpha_c = tf.Variable(np.float32(alpha_c), trainable=False, name='alpha_c')
+        alpha_reg = alpha_c * tf.reduce_mean(tf.reduce_sum(((1.-tf.reduce_sum(ALPHAS, axis=0))**2), axis=-1))
+        COST += alpha_reg
+
+    if alpha_entropy_r > 0:
+        alpha_entropy_r = tf.Variable(np.float32(alpha_entropy_r),
+                                        name='alpha_entropy_r')
+        alpha_reg_2 = alpha_entropy_r * tf.reduce_mean(tf.reduce_sum((-tf.add(ALPHAS *
+                    tf.log(ALPHAS+1e-8),axis=-1)), axis=-1))
+        COST += alpha_reg_2
+    else:
+        alpha_reg_2 = tf.zeros_like(COST)
+
     print 'building f_alpha'
     f_alpha = [ALPHAS, BETAS]
 
-    LOSS = tf.reduce_mean(COST)
-    UPDATE_OPS = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-    with tf.control_dependencies(UPDATE_OPS):
-        optimizer = tf.train.AdadeltaOptimizer(learning_rate=lrate).minimize(LOSS)
+    print 'compute grad'
+    wrt = utils.itemlist(tfparams)
+    trainables = tf.trainable_variables()
+    assert len(wrt)==len(trainables)
+    grads = tf.gradients(COST, wrt)
+    if isinstance(grads[0], ops.IndexedSlices):
+        print 'converting %s to '%grads[0].name,
+        grads[0] = tf.convert_to_tensor(grads[0])
+        print '(dense) %s , shape:'%grads[0].name, grads[0].shape
+    # grads, _ = tf.clip_by_global_norm(grads, clip_norm=1.0)
+    if clip_c > 0.:
+        g2 = 0.
+        for g in grads:
+            g2 += tf.reduce_sum(tf.square(g))
+        new_grads = []
+        for g in grads:
+            new_grads.append(tf.cond(g2 > (clip_c**2),
+                                    lambda : g / tf.sqrt(g2) * clip_c,
+                                    lambda : g))
+        grads = new_grads
+
+    print 'build train fns'
+    # UPDATE_OPS = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    # with tf.control_dependencies(UPDATE_OPS):
+    #     optimizer = tf.train.AdadeltaOptimizer(learning_rate=lrate).minimize(COST)
+    grad_var_pairs = zip(grads, wrt)
+    global_step = tf.Variable(0, trainable=False, dtype=tf.int32)
+    lrate = tf.train.exponential_decay(lrate, global_step, decay_steps=15000, decay_rate=0.1, staircase=True)
+    # optimizer = tf.train.AdadeltaOptimizer(learning_rate=lrate)
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate=lrate)
+    optimizer_op = optimizer.apply_gradients(grad_var_pairs,global_step=global_step)    
 
     # Initialize all variables
     var_init = tf.global_variables_initializer()
@@ -142,6 +197,13 @@ def train(model_options,
     best_valid_err = 999
     alphas_ratio = []
 
+    train_err = -1
+    train_perp = -1
+    valid_err = -1
+    valid_perp = -1
+    test_err = -1
+    test_perp = -1
+
     # Launch the graph
     with tf.Session() as sess:
         sess.run(var_init)
@@ -165,18 +227,22 @@ def train(model_options,
                     continue
 
                 ud_start = time.time()
-                sess.run(optimizer, feed_dict={
+                # writer = tf.summary.FileWriter("graph_optimizer", sess.graph)
+                sess.run(optimizer_op, feed_dict={
                                         X: x,
                                         MASK: mask,
                                         CTX: ctx,
                                         CTX_MASK: ctx_mask})
+                # writer.close()
                 ud_duration = time.time() - ud_start
 
-                cost = sess.run(LOSS, feed_dict={
+                # writer = tf.summary.FileWriter("graph_cost", sess.graph)
+                cost = sess.run(COST, feed_dict={
                                         X: x,
                                         MASK: mask,
                                         CTX: ctx,
                                         CTX_MASK: ctx_mask})
+                # writer.close()
                 if np.isnan(cost) or np.isinf(cost):
                     print 'NaN detected in cost'
                     import pdb; pdb.set_trace()
@@ -207,7 +273,6 @@ def train(model_options,
                         alphas.min(-1).mean() / (alphas.max(-1)).mean(), betas_mean)
                     l = 0
                     for vv in x[:, 0]:
-                        print vv,
                         if vv == 0: # eos
                             break
                         if vv in engine.reverse_vocab:
@@ -220,7 +285,8 @@ def train(model_options,
 
                 if np.mod(uidx, saveFreq) == 0:
                     pass
-                sampleFreq = 10
+
+                sampleFreq = 1
                 if np.mod(uidx, sampleFreq) == 0:
                     sess.run(tf.assign(use_noise, False))
                     print '------------- sampling from train ----------'
@@ -229,13 +295,14 @@ def train(model_options,
                     ctx_s = ctx     # (m,28,2048)
                     ctx_mask_s = ctx_mask   # (m,28)
                     model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
-                    print '------------- sampling from valid ----------'
-                    idx = engine.kf_val[np.random.randint(1, len(engine.kf_val) - 1)]
-                    tags = [engine.val_data_ids[index] for index in idx]
-                    x_s, mask_s, ctx_s, mask_ctx_s = data_engine.prepare_data(engine, tags,"val")
-                    model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
-                    print ""
-                validFreq=100
+                    # print '------------- sampling from valid ----------'
+                    # idx = engine.kf_val[np.random.randint(1, len(engine.kf_val) - 1)]
+                    # tags = [engine.val_data_ids[index] for index in idx]
+                    # x_s, mask_s, ctx_s, mask_ctx_s = data_engine.prepare_data(engine, tags,"val")
+                    # model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
+                    # print ""
+
+                # validFreq=1
                 if validFreq != -1 and np.mod(uidx, validFreq) == 0:
                     t0_valid = time.time()
                     alphas, _ = sess.run(f_alpha, feed_dict={
@@ -267,7 +334,7 @@ def train(model_options,
                         else:
                             train_err = 0.
                             train_perp = 0.
-                        if 0:
+                        if 1:
                             print 'validating...'
                             valid_err, valid_perp = model.pred_probs(sess, engine, 'val',
                                     f_log_probs, verbose=model_options['verbose'])
@@ -381,7 +448,11 @@ def train(model_options,
                     # end of validatioin
                 if debug:
                     break
-            
+
+                if(uidx==200):
+                    estop=True
+                    break
+
             if estop:
                 break
             if debug:

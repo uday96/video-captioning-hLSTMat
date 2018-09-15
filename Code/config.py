@@ -43,8 +43,8 @@ params = {
     'test_data_ids_path' : MSVD_DATA_IDS_TEST_PATH,
     'vocab_path' : MSVD_VOCAB_PATH,
     'reverse_vocab_path' : MSVD_REVERSE_VOCAB_PATH,
-    'mb_size_train' : 2, # 64
-    'mb_size_test' : 2, # 128
+    'mb_size_train' : 1, # 64
+    'mb_size_test' : 1, # 128
     'train_caps_path' : MSVD_VID_CAPS_TRAIN_PATH,
     'val_caps_path' : MSVD_VID_CAPS_VAL_PATH,
     'test_caps_path' : MSVD_VID_CAPS_TEST_PATH,
@@ -55,11 +55,15 @@ params = {
     'lstm_dim' : 512,	# lstm unit size
     'patience' : 20,
     'max_epochs' : 500,
-    'lrate' : 0.0001,
+    'decay_c' : 1e-4,
+    'alpha_entropy_r' : 0.,
+    'alpha_c' : 0.70602,
+    'clip_c': 10.,
+    'lrate' : 0.01,
     'vocab_size' : 20000, # n_words
     'maxlen_caption' : 30,	# max length of the descprition
     'optimizer' : 'adadelta',
-    'batch_size' : 2, # 64	# for trees use 25
+    'batch_size' : 1, # 64	# for trees use 25
     'metric' : 'everything',	# set to perplexity on DVS # blue, meteor, or both
     'use_dropout' : True,
     'selector' : True,
@@ -71,7 +75,7 @@ params = {
     'saveFreq' : -1, # this is disabled, now use sampleFreq instead
     'sampleFreq' : 100,
     'verbose' : True,
-    'debug' : False,
+    'debug' : False,    # False
     'reload_model' : False,
     'from_dir' : '',
     'ctx_frames' : 28, # 26 when compare 
@@ -82,10 +86,6 @@ params = {
 #         'n_layers_out':1, # for predicting next word        
 #         'n_layers_init':0, 
 #         'encoder_dim': 300,
-#         'decay_c':1e-4,
-#         'alpha_entropy_r': 0.,
-#         'alpha_c':0.70602,
-#         'clip_c': 10.,
 #         'valid_batch_size':200,
 #         'OutOf':None, # used to be 240, for motionfeature use 26
 #         }

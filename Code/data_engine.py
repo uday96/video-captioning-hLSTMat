@@ -29,7 +29,7 @@ class Movie2Caption(object):
             feat = np.load(self.feats_dir+vid_id+'.npy')
         else:
             raise NotImplementedError()
-        return feat
+        return feat.astype('float32')
 
     def get_cap_tokens(self, vid_id, cap_id, mode):
         if mode == "train":
@@ -86,9 +86,12 @@ class Movie2Caption(object):
         self.train_data_ids = utils.read_file_to_list(self.train_data_ids_path)
         self.val_data_ids = utils.read_file_to_list(self.val_data_ids_path)
         self.test_data_ids = utils.read_file_to_list(self.test_data_ids_path)
-        self.train_data_ids = self.train_data_ids[:6]   # ONLY FOR DEBUG - REMOVE
-        self.val_data_ids = self.val_data_ids[:6]
-        self.test_data_ids = self.test_data_ids[:6]
+        utils.shuffle_array(self.train_data_ids)
+        utils.shuffle_array(self.val_data_ids)
+        utils.shuffle_array(self.test_data_ids)
+        self.train_data_ids = self.train_data_ids[:1]   # ONLY FOR DEBUG - REMOVE
+        self.val_data_ids = self.val_data_ids[:1]
+        self.test_data_ids = self.test_data_ids[:1]
         self.train_caps = utils.read_from_json(self.train_caps_path)
         self.val_caps = utils.read_from_json(self.val_caps_path)
         self.test_caps = utils.read_from_json(self.test_caps_path)

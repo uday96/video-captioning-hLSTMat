@@ -15,10 +15,8 @@ class Model(object):
     def init_params(self, options):
         # all parameters
         params = OrderedDict()
-        # tfparams = OrderedDict()
         # embedding
         params['Wemb'] = utils.norm_weight(options['vocab_size'], options['word_dim'])
-        # tfparams['Wemb'] = tf.placeholder(tf.float32, shape=(options['vocab_size'], options['word_dim']), name="Wemb")
         # LSTM initial states
         params = self.layers.get_layer('ff')[0](options, params, prefix='ff_state', nin=options['ctx_dim'], nout=options['lstm_dim'])
         params = self.layers.get_layer('ff')[0](options, params, prefix='ff_memory', nin=options['ctx_dim'], nout=options['lstm_dim'])
@@ -36,37 +34,43 @@ class Model(object):
         return params
 
     def build_model(self, tfparams, options, x, mask, ctx, ctx_mask):
-        use_noise = tf.Variable(False, dtype=tf.bool)
+        use_noise = tf.Variable(False, dtype=tf.bool, trainable=False, name="use_noise")
         x_shape = tf.shape(x)
         n_timesteps = x_shape[0]
         n_samples = x_shape[1]
         # get word embeddings
-        inputs = tf.nn.embedding_lookup(tfparams['Wemb'], x)    # (num_steps,64,512)
+        inputs = tf.nn.embedding_lookup(tfparams['Wemb'], x, name="inputs_emb_lookup")    # (num_steps,64,512)
         # count num_frames==28
-        counts = tf.expand_dims(tf.reduce_sum(ctx_mask, 1), 1)  # (64,1)
-        ctx_ = ctx
-        ctx0 = ctx_     # (64,28,2048)
-        ctx_mean = tf.reduce_sum(ctx0, axis=1) / counts  #mean pooling of {vi}   # (64,2048)
+        with tf.name_scope("ctx_mean"):
+            with tf.name_scope("counts"):
+                counts = tf.expand_dims(tf.reduce_sum(ctx_mask, axis=-1, name="reduce_sum_ctx_mask"), 1)  # (64,1)
+            ctx_ = ctx
+            ctx0 = ctx_     # (64,28,2048)
+            ctx_mean = tf.reduce_sum(ctx0, axis=1, name="reduce_sum_ctx") / counts  #mean pooling of {vi}   # (64,2048)
         # initial state/cell
-        init_state = self.layers.get_layer('ff')[1](tfparams, ctx_mean, options, prefix='ff_state', activ='tanh')   # (64,512)
-        init_memory = self.layers.get_layer('ff')[1](tfparams, ctx_mean, options, prefix='ff_memory', activ='tanh') # (64,512)
+        with tf.name_scope("init_state"):
+            init_state = self.layers.get_layer('ff')[1](tfparams, ctx_mean, options, prefix='ff_state', activ='tanh')   # (64,512)
+        with tf.name_scope("init_memory"):
+            init_memory = self.layers.get_layer('ff')[1](tfparams, ctx_mean, options, prefix='ff_memory', activ='tanh') # (64,512)
         # hstltm = self.layers.build_hlstm(['bo_lstm','to_lstm'], inputs, n_timesteps, init_state, init_memory)
-        bo_lstm = self.layers.get_layer('lstm_cond')[1](tfparams, inputs, options,
-                                                        prefix='bo_lstm',
-                                                        mask=mask, context=ctx0,
-                                                        one_step=False,
-                                                        init_state=init_state,
-                                                        init_memory=init_memory,
-                                                        use_noise=use_noise)
-        to_lstm = self.layers.get_layer('lstm')[1](tfparams, bo_lstm[0],
-                                                   mask=mask,
-                                                   one_step=False,
-                                                   prefix='to_lstm')
+        with tf.name_scope("bo_lstm"):
+            bo_lstm = self.layers.get_layer('lstm_cond')[1](tfparams, inputs, options,
+                                                            prefix='bo_lstm',
+                                                            mask=mask, context=ctx0,
+                                                            one_step=False,
+                                                            init_state=init_state,
+                                                            init_memory=init_memory,
+                                                            use_noise=use_noise)
+        with tf.name_scope("to_lstm"):
+            to_lstm = self.layers.get_layer('lstm')[1](tfparams, bo_lstm[0],
+                                                       mask=mask,
+                                                       one_step=False,
+                                                       prefix='to_lstm')
         bo_lstm_h = bo_lstm[0]  # (t,64,512)
         to_lstm_h = to_lstm[0]  # (t,64,512)
-        alphas = bo_lstm[2]
-        ctxs = bo_lstm[3]
-        betas = bo_lstm[4]  # (t,m)
+        alphas = bo_lstm[2] # (t,64,28)
+        ctxs = bo_lstm[3]   # (t,64,2048)
+        betas = bo_lstm[4]  # (t,64,)
         if options['use_dropout']:
             bo_lstm_h = self.layers.dropout_layer(bo_lstm_h, use_noise)
             to_lstm_h = self.layers.dropout_layer(to_lstm_h, use_noise)
@@ -171,7 +175,8 @@ class Model(object):
         next_probs = tf.nn.softmax(logit)
         # next_sample = trng.multinomial(pvals=next_probs).argmax(1)    # INCOMPLETE , DOUBT : why is multinomial needed?
         next_sample = tf.multinomial(next_probs,1) # draw samples with given probabilities (1,1)
-        # next_sample = tf.reshape(next_sample,[1]) DOUBT?
+        next_sample_shape = tf.shape(next_sample)
+        next_sample = tf.reshape(next_sample,[next_sample_shape[0]])
         # next word probability
         print 'building f_next...',
         f_next = [next_probs, next_sample] + next_state + next_memory
@@ -240,6 +245,12 @@ class Model(object):
             if restrict_voc:
                 raise NotImplementedError()
             next_w = rval[1]  # already argmax sorted
+            # print "--------"
+            # print next_p
+            # print next_p.shape
+            # print next_w
+            # print next_w.shape
+            # print "--------"
             next_state = []
             for lidx in xrange(n_layers_lstm):
                 next_state.append(rval[2 + lidx])

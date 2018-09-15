@@ -77,7 +77,7 @@ class Layers(object):
 
         # mask
         if mask is None:
-            mask = tf.fill([state_below_shape[0]], np.float32(1.))
+            mask = tf.fill([state_below_shape[0]], np.float32(1.))  # CHECK
         if init_state is None:
             # init_state = tf.constant(0., shape=(n_samples, dim), dtype=tf.float32)  # DOUBT ? getting same ans for tf.variable and tf.constant
             init_state = tf.fill([n_samples, dim], np.float32(0.))
@@ -192,7 +192,7 @@ class Layers(object):
             if init_state is None:
                 raise ValueError('previous state must be provided')
 
-        state_below_shape = tf.shape(state_below)
+        state_below_shape = tf.shape(state_below, name="state_below_shape")
         if state_below.shape.ndims == 3:
             n_samples = state_below_shape[1]
         else:
@@ -200,20 +200,22 @@ class Layers(object):
         dim = tfparams[_p(prefix, 'U')].shape[0]
 
         if mask is None:
-            mask = tf.fill([state_below_shape[0]], np.float32(1.))   # (m,) in sampling DOUBT ? (m, 1) or (m, )
+            mask = tf.fill([state_below_shape[0]], np.float32(1.), name="mask_fill")   # (m,) in sampling DOUBT ? (m, 1) or (m, ) CHECK VERIFIED
         if init_state is None:
-            init_state = tf.constant(0., shape=(n_samples, dim), dtype=tf.float32)  # DOUBT ? getting same ans for tf.variable and tf.constant
+            init_state = tf.constant(0., shape=(n_samples, dim), dtype=tf.float32, name="init_state_const")  # DOUBT ? getting same ans for tf.variable and tf.constant
         if init_memory is None:
-            init_memory = tf.constant(0., shape=(n_samples, dim), dtype=tf.float32)
+            init_memory = tf.constant(0., shape=(n_samples, dim), dtype=tf.float32, name="init_memory_const")
 
         # projected context
-        pctx_ = batch_matmul(context, tfparams[_p(prefix, 'Wc_att')]) + tfparams[_p(prefix, 'b_att')]    # (64,28,2048)*(2048,2048)+(2048,) = (64,28,2048) or (1,28,2048) in sampling
-        if one_step:
-            # tensor.dot will remove broadcasting dim
-            # raise NotImplementedError()
-            pass    # INCOMPLETE
+        with tf.name_scope("pctx_"):
+            pctx_ = batch_matmul(context, tfparams[_p(prefix, 'Wc_att')]) + tfparams[_p(prefix, 'b_att')]    # (64,28,2048)*(2048,2048)+(2048,) = (64,28,2048) or (1,28,2048) in sampling
+        # if one_step:
+        #     # tensor.dot will remove broadcasting dim
+        #     # raise NotImplementedError()
+        #     pass    # INCOMPLETE    VERIFIED - broadcast not needed in tf
         # projected x
-        state_below = batch_matmul(state_below, tfparams[_p(prefix, 'W')]) + tfparams[_p(prefix, 'b')]    # (19,64,512)*(512,2048)+(2048) = (19,64,2048) or (m,2048) in sampling
+        with tf.name_scope("state_below"):
+            state_below = batch_matmul(state_below, tfparams[_p(prefix, 'W')]) + tfparams[_p(prefix, 'b')]    # (19,64,512)*(512,2048)+(2048) = (19,64,2048) or (m,2048) in sampling
         Wd_att = tfparams[_p(prefix, 'Wd_att')]  # (512,2048)
         U_att = tfparams[_p(prefix, 'U_att')]    # (2048,1)
         c_att = tfparams[_p(prefix, 'c_att')] # (1,)
@@ -221,18 +223,17 @@ class Layers(object):
             W_sel = tfparams[_p(prefix, 'W_sel')]
             b_sel = tfparams[_p(prefix, 'b_sel')]
         else:
-            # W_sel = tensor.alloc(0., 1)
-            # b_sel = tensor.alloc(0., 1)
-            raise NotImplementedError()
+            W_sel = tf.constant(0., shape=(1), dtype=tf.float32)
+            b_sel = tf.constant(0., shape=(1), dtype=tf.float32)
         U = tfparams[_p(prefix, 'U')]    # (512,2048)
 
-        pctx_shape = tf.shape(pctx_)
+        pctx_shape = tf.shape(pctx_, name="pctx_shape")
         # init_alpha = tf.constant(0.,shape=(n_samples, pctx_shape[1]), dtype=tf.float32)
-        init_alpha = tf.fill([n_samples, pctx_shape[1]], np.float32(0.))
+        init_alpha = tf.fill([n_samples, pctx_shape[1]], np.float32(0.), name="init_alpha_fill")
         # init_ctx = tf.constant(0.,shape=(n_samples, U.shape[1]), dtype=tf.float32)
-        init_ctx = tf.fill([n_samples, U.shape[1]], np.float32(0.))
+        init_ctx = tf.fill([n_samples, U.shape[1]], np.float32(0.), name="init_ctx_fill")
         # init_beta = tf.constant(0.,shape=(n_samples, ), dtype=tf.float32)
-        init_beta = tf.fill([n_samples,], np.float32(0.))
+        init_beta = tf.fill([n_samples,], np.float32(0.), name="init_beta_fill")
 
         def _slice(_x, n, dim):
             if _x.shape.ndims == 3:
@@ -246,7 +247,7 @@ class Layers(object):
             else:
                 m_, x_ = elems
             h_, c_, _, _, _ = prev
-            preact = tf.matmul(h_, U)   # (64,512)*(512,2048) = (64,2048) or (m,2048) in sampling
+            preact = tf.matmul(h_, U, name="MatMul_preact")   # (64,512)*(512,2048) = (64,2048) or (m,2048) in sampling
             preact = preact + x_
             i = _slice(preact, 0, dim)  # (64,512)  (0-511) or (m,512) in sampling
             f = _slice(preact, 1, dim)  # (64,512)  (512,1023)  or (m,512) in sampling
@@ -265,7 +266,7 @@ class Layers(object):
             h = m_[:, None] * h + (1. - m_)[:, None] * h_
             # attention
             pstate_ = tf.matmul(h, Wd_att) # shape = (64,512)*(512,2048) = (64,2048) or (m,2048) in sampling
-            pctx_t = pctx_ + pstate_[:, None, :] # shape = (64,28,2048)+(64,?,2048) = (64,28,2048)  # DOUBT pctx_ += ??
+            pctx_t = pctx_ + pstate_[:, None, :] # shape = (64,28,2048)+(64,?,2048) = (64,28,2048)  # DOUBT pctx_ += ?? VERIFIED
                 #   (1,28,2048) + (m,?,2048) = (m,28,2048)
             pctx_t = tanh(pctx_t)
             alpha = batch_matmul(pctx_t, U_att) + c_att    # (64,28,2048)*(2048,1) + (1,) = (64,28,1) or (m,28,1) in sampling
@@ -282,15 +283,15 @@ class Layers(object):
             return rval
 
         if options['use_dropout']:
-            dp_shape = tf.shape(state_below)
+            dp_shape = tf.shape(state_below, name="dp_shape")
             if one_step:
                 dp_mask = tf.cond(use_noise,
                                 lambda: tf.nn.dropout(tf.fill([dp_shape[0], 3 * dim], np.float32(0.5)), keep_prob=0.5),
-                                lambda: tf.fill([dp_shape[0], 3 * dim], np.float32(0.5)))
+                                lambda: tf.fill([dp_shape[0], 3 * dim], np.float32(0.5)), name="one_step_dp_cond")
             else:
                 dp_mask = tf.cond(use_noise,
                                 lambda: tf.nn.dropout(tf.fill([dp_shape[0], dp_shape[1], 3 * dim], np.float32(0.5)), keep_prob=0.5),
-                                lambda: tf.fill([dp_shape[0], dp_shape[1], 3 * dim], np.float32(0.5)))
+                                lambda: tf.fill([dp_shape[0], dp_shape[1], 3 * dim], np.float32(0.5)), name="dp_cond")
 
         if one_step:
             if options['use_dropout']:
@@ -304,7 +305,7 @@ class Layers(object):
             rval = tf.scan(step, 
                             seqs,
                             initializer=[init_state, init_memory, init_alpha, init_ctx, init_beta],
-                            name=_p(prefix, '_layers'))
+                            name=_p(prefix, 'layers'))
         return rval
 
     # def create_get_lstm_cell(prefix, is_training=True, rnn_mode="basic"):

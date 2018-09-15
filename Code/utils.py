@@ -66,6 +66,10 @@ def flatten_list_of_list(l):
     # l is a list of list
     return [item for sublist in l for item in sublist]
 
+# get the list of parameters: Note that tparams must be OrderedDict
+def itemlist(tfparams):
+    return [vv for kk, vv in tfparams.iteritems()]
+
 def shuffle_array(array):
 	return rng_numpy.shuffle(array)
 
@@ -139,7 +143,7 @@ def init_tfparams(params):
     """
     tfparams = OrderedDict()
     for kk, pp in params.iteritems():
-        tfparams[kk] = tf.Variable(params[kk], name=kk)
+        tfparams[kk] = tf.Variable(params[kk], name=kk, trainable=True)
     return tfparams
 
 # https://github.com/tensorflow/tensorflow/issues/216
