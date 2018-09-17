@@ -252,12 +252,6 @@ class Model(object):
             if restrict_voc:
                 raise NotImplementedError()
             next_w = rval[1]  # already argmax sorted
-            # print "--------"
-            # print next_p
-            # print next_p.shape
-            # print next_w
-            # print next_w.shape
-            # print "--------"
             next_state = []
             for lidx in xrange(n_layers_lstm):
                 next_state.append(rval[2 + lidx])

@@ -191,7 +191,6 @@ def train(model_options,
             n_samples = 0
             train_costs = []
             grads_record = []
-            print '\nEpoch ', eidx, '\n'
             for idx in engine.kf_train:
                 tags = [engine.train_data_ids[index] for index in idx]
                 n_samples += len(tags)
@@ -230,7 +229,7 @@ def train(model_options,
                 else:
                     train_error = train_error * 0.95 + cost * 0.05
                 train_costs.append(cost)
-                dispFreq = 1
+                
                 if np.mod(uidx, dispFreq) == 0:
                     print 'Epoch: ', eidx, \
                         ', Update: ', uidx, \
@@ -264,7 +263,6 @@ def train(model_options,
                 if np.mod(uidx, saveFreq) == 0:
                     pass
 
-                sampleFreq = 1
                 if np.mod(uidx, sampleFreq) == 0:
                     sess.run(tf.assign(use_noise, False))
                     print '------------- sampling from train ----------'
@@ -280,7 +278,6 @@ def train(model_options,
                     # model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
                     # print ""
 
-                # validFreq=1
                 if validFreq != -1 and np.mod(uidx, validFreq) == 0:
                     t0_valid = time.time()
                     alphas, _ = sess.run(f_alpha, feed_dict={
@@ -386,7 +383,7 @@ def train(model_options,
                       valid_B4 > np.array(history_errs)[:-1,11].max():
                         print 'Saving to %s...'%save_dir,
                         np.savez(
-                            save_model_dir+'model_best_blue_or_meteor.npz',
+                            save_dir+'model_best_blue_or_meteor.npz',
                             history_errs=history_errs)
                         saver.save(sess, save_dir+'model_best_blue_or_meteor.ckpt') # DOUBT
                     if len(history_errs) > 1 and \
@@ -427,10 +424,6 @@ def train(model_options,
                 if debug:
                     break
 
-                if(uidx==200):
-                    estop=True
-                    break
-
             if estop:
                 break
             if debug:
@@ -452,6 +445,11 @@ def train(model_options,
             best_valid_idx = history[:,6].argmin()
             np.savetxt(save_dir+'train_valid_test.txt', history, fmt='%.4f')
             print 'final best exp ', history[best_valid_idx]
+
+        np.savez(
+            save_dir+'model_train_end.npz',
+            history_errs=history_errs)
+        saver.save(sess, save_dir+'model_train_end.ckpt')
     return
 
 def train_util(params):
