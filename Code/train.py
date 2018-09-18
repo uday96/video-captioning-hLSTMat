@@ -272,12 +272,12 @@ def train(model_options,
                     ctx_s = ctx     # (m,28,2048)
                     ctx_mask_s = ctx_mask   # (m,28)
                     model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
-                    # print '------------- sampling from valid ----------'
-                    # idx = engine.kf_val[np.random.randint(1, len(engine.kf_val) - 1)]
-                    # tags = [engine.val_data_ids[index] for index in idx]
-                    # x_s, mask_s, ctx_s, mask_ctx_s = data_engine.prepare_data(engine, tags,"val")
-                    # model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
-                    # print ""
+                    print '------------- sampling from valid ----------'
+                    idx = engine.kf_val[np.random.randint(1, len(engine.kf_val) - 1)]
+                    tags = [engine.val_data_ids[index] for index in idx]
+                    x_s, mask_s, ctx_s, mask_ctx_s = data_engine.prepare_data(engine, tags,"val")
+                    model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
+                    print ""
 
                 if validFreq != -1 and np.mod(uidx, validFreq) == 0:
                     t0_valid = time.time()
