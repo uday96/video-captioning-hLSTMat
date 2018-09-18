@@ -81,15 +81,6 @@ def clean_caps_df(csv_data,present_vid_ids,present_vid_ids_csv):
 	punct_dict = get_punctuations()
 	translator = string.maketrans("","")
 	df['Description'] = df.apply(lambda row: clean_caps(row['Description'],punct_dict,translator,omitted_caps), axis=1)
-	# for index,row in df.iterrows():
-	# 	# row['Description'] = row['Description'].decode('ascii','ignore').strip()
-	# 	# if(len(row['Description'])==0):
-	# 	# 	row['Description'] = None
-	# 	tokens, clean_cap = tokenize(row['Description'].strip(),punct_dict,translator)
-	# 	row['Description'] = clean_cap
-	# 	if(not is_ascii(row['Description'])):
-	# 		omitted_caps.append(row['Description'])
-	# 		row['Description'] = None
 	df = df.loc[df['Description'].notnull()]
 	df.to_csv(config.MSVD_FINAL_CORPUS_PATH, index=False, encoding='utf-8')
 	print("Non-ASCII captions omitted :"+str(len(omitted_caps)))
@@ -167,13 +158,6 @@ def split_data(csv_data):
 	test_df = filter_df(csv_data,test_ids,config.MSVD_FINAL_CORPUS_TEST_PATH)
 	return train_df, val_df, test_df
 
-def save_diff_files(vid_feats_path, feat_save_path):
-	vid_feats = np.load(vid_feats_path)
-	for feat in vid_feats[()].items():
-		vid_id = feat[0]	#video ID
-		vid_ctx = feat[1]	#video feature (28,2048) for resnet
-		np.save(feat_save_path+vid_id+".npy",vid_ctx)
-
 def prepare_data_ids(vid_caps_path, ids_save_path):
 	vid_caps_dict = utils.read_from_json(vid_caps_path)
 	data_ids = []
@@ -188,7 +172,6 @@ def prepare_data_ids(vid_caps_path, ids_save_path):
 
 if __name__ == '__main__':
 	has_ids_list = True
-	seperate_ctx = False
 	print("removing empty lines in original corpus...")
 	preproc_csv(config.MSVD_CSV_DATA_PATH,config.MSVD_PREPROC_CSV_DATA_PATH)
 	print("loading proccessed corpus...")
@@ -212,13 +195,6 @@ if __name__ == '__main__':
 	vocab, _ = gen_vocab(train_df,"train")
 	_, _ = gen_vocab(val_df,"val")
 	_, _ = gen_vocab(test_df,"test")
-	if seperate_ctx:
-		print("saving train data resnet features as seperate files...")
-		save_diff_files(config.MSVD_FRAMES_FEATS_TRAIN_PATH, config.MSVD_FEATS_RESNET_DIR)
-		print("saving val data resnet features as seperate files...")
-		save_diff_files(config.MSVD_FRAMES_FEATS_VAL_PATH, config.MSVD_FEATS_RESNET_DIR)
-		print("saving test data resnet features as seperate files...")
-		save_diff_files(config.MSVD_FRAMES_FEATS_TEST_PATH, config.MSVD_FEATS_RESNET_DIR)
 	print("generating train data vid+seq ids...")
 	prepare_data_ids(config.MSVD_VID_CAPS_TRAIN_PATH, config.MSVD_DATA_IDS_TRAIN_PATH)
 	print("generating val data vid+seq ids...")

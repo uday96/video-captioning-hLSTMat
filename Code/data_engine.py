@@ -25,7 +25,7 @@ class Movie2Caption(object):
         self.load_data()
     
     def get_video_features(self, vid_id):
-        if self.cnn_name == 'resnet':
+        if self.cnn_name == 'ResNet50':
             feat = np.load(self.feats_dir+vid_id+'.npy')
         else:
             raise NotImplementedError()
@@ -98,7 +98,7 @@ class Movie2Caption(object):
         self.vocab = utils.read_from_json(self.vocab_path)
         self.reverse_vocab = utils.read_from_pickle(self.reverse_vocab_path)
         self.vocab_size = len(self.vocab)
-        if self.cnn_name == 'resnet':
+        if self.cnn_name == 'ResNet50':
             self.ctx_dim = 2048
         else:
             raise NotImplementedError()
@@ -151,8 +151,8 @@ def prepare_data(engine, IDs, mode="train"):
     
 def test_data_engine():
     # from sklearn.cross_validation import KFold
-    dataset_name = 'msvd'
-    cnn_name = 'resnet'
+    dataset_name = 'MSVD'
+    cnn_name = 'ResNet50'
     train_data_ids_path = config.MSVD_DATA_IDS_TRAIN_PATH
     val_data_ids_path = config.MSVD_DATA_IDS_VAL_PATH
     test_data_ids_path = config.MSVD_DATA_IDS_TEST_PATH
@@ -164,7 +164,7 @@ def test_data_engine():
     train_caps_path = config.MSVD_VID_CAPS_TRAIN_PATH
     val_caps_path = config.MSVD_VID_CAPS_VAL_PATH
     test_caps_path = config.MSVD_VID_CAPS_TEST_PATH
-    feats_dir = config.MSVD_FEATS_RESNET_DIR
+    feats_dir = config.MSVD_FEATS_DIR+cnn_name+"/"
     engine = Movie2Caption(dataset_name,cnn_name,train_data_ids_path, val_data_ids_path, test_data_ids_path,
                 vocab_path, reverse_vocab_path, mb_size_train, mb_size_test, maxlen_caption,
                 train_caps_path, val_caps_path, test_caps_path, feats_dir)

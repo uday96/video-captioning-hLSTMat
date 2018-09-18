@@ -5,39 +5,47 @@ MSVD_PREPROC_CSV_DATA_PATH = "../Data/MSVD/processed_MSVD_corpus.csv"
 MSVD_VIDEO_DATA_PATH = "../Data/MSVD/YouTubeClips/"
 MSVD_OMMITTED_CAPS_PATH = "../Data/MSVD/MSVD_omitted_caps.txt"
 MSVD_FINAL_CORPUS_PATH = "../Data/MSVD/MSVD_final_corpus.csv"
+
 MSVD_VOCAB_PATH = '../Data/MSVD/MSVD_vocab.json'
 MSVD_REVERSE_VOCAB_PATH = '../Data/MSVD/MSVD_reverse_vocab.pkl'
+
 MSVD_VID_CAPS_TRAIN_PATH = '../Data/MSVD/MSVD_vid_caps_train.json'
 MSVD_VID_CAPS_VAL_PATH = '../Data/MSVD/MSVD_vid_caps_val.json'
 MSVD_VID_CAPS_TEST_PATH = '../Data/MSVD/MSVD_vid_caps_test.json'
+
 TOTAL_VIDS = 1970
 TRAIN_VIDS = 1200
 TEST_VIDS = 670
 VAL_VIDS = 100
+
 MSVD_FINAL_CORPUS_TRAIN_PATH = "../Data/MSVD/MSVD_final_corpus_train.csv"
 MSVD_FINAL_CORPUS_VAL_PATH = "../Data/MSVD/MSVD_final_corpus_val.csv"
 MSVD_FINAL_CORPUS_TEST_PATH = "../Data/MSVD/MSVD_final_corpus_test.csv"
+
 MSVD_VID_IDS_ALL_PATH = "../Data/MSVD/present_vid_ids.txt"
+
 MSVD_VID_IDS_TRAIN_PATH = "../Data/MSVD/vid_ids_train.txt"
 MSVD_VID_IDS_VAL_PATH = "../Data/MSVD/vid_ids_val.txt"
 MSVD_VID_IDS_TEST_PATH = "../Data/MSVD/vid_ids_test.txt"
+
 MSVD_FRAMES_DIR = "../Data/MSVD/Frames"
-MSVD_FEATS_RESNET_DIR = "../Data/MSVD/Features/ResNet50/"
-MSVD_FRAMES_FEATS_TRAIN_PATH = "../Data/MSVD/MSVD_resnet50_features_train.npy"
-MSVD_FRAMES_FEATS_VAL_PATH = "../Data/MSVD/MSVD_resnet50_features_val.npy"
-MSVD_FRAMES_FEATS_TEST_PATH = "../Data/MSVD/MSVD_resnet50_features_test.npy"
+MSVD_FEATS_DIR = "../Data/MSVD/Features/"
+
 RESNET_FEAT_DIM = 2048
+INCEPTION_FEAT_DIM = 2048
+
 MAX_FRAMES = 360
 FRAME_SPACING = 28
+
 MSVD_DATA_IDS_TRAIN_PATH = "../Data/MSVD/data_ids_train.txt"
 MSVD_DATA_IDS_VAL_PATH = "../Data/MSVD/data_ids_val.txt"
 MSVD_DATA_IDS_TEST_PATH = "../Data/MSVD/data_ids_test.txt"
 
-SAVE_DIR_PATH = "../Results/"
+SAVE_DIR_PATH = "../Results/Debug/"
 
 params = {
-	'dataset_name' : 'msvd',
-    'cnn_name' : 'resnet',
+	'dataset_name' : 'MSVD',
+    'cnn_name' : 'ResNet50',
     'train_data_ids_path' : MSVD_DATA_IDS_TRAIN_PATH,
     'val_data_ids_path' : MSVD_DATA_IDS_VAL_PATH,
     'test_data_ids_path' : MSVD_DATA_IDS_TEST_PATH,
@@ -48,7 +56,7 @@ params = {
     'train_caps_path' : MSVD_VID_CAPS_TRAIN_PATH,
     'val_caps_path' : MSVD_VID_CAPS_VAL_PATH,
     'test_caps_path' : MSVD_VID_CAPS_TEST_PATH,
-    'feats_dir' : MSVD_FEATS_RESNET_DIR,
+    'feats_dir' : MSVD_FEATS_DIR,
     'save_dir': SAVE_DIR_PATH,
     'word_dim' : 512,	# word embeddings size
     'ctx_dim' : 2048,	# video cnn feature dimension
@@ -80,6 +88,7 @@ params = {
     'from_dir' : '',
     'ctx_frames' : 28, # 26 when compare 
     'random_seed' : 1234,
+    'beam_search' : True,
 }
 
 # params = {

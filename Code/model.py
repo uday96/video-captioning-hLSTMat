@@ -384,13 +384,17 @@ class Model(object):
         return -1 * np.mean(probs), perp
 
     def sample_execute(self, sess, engine, options, tfparams, f_init, f_next, x, ctx, ctx_mask):
-        stochastic = False
+        stochastic = not options['beam_search']
+        if stochastic:
+            beam = 1
+        else:
+            beam = 5
         # x = (t,64)
         # ctx = (64,28,2048)
         # ctx_mask = (64,28)
         for jj in xrange(np.minimum(10, x.shape[1])):
             sample, score, _, _ = self.gen_sample(sess, tfparams, f_init, f_next, ctx[jj], ctx_mask[jj],
-                                                  options, k=5, maxlen=30, stochastic=stochastic)
+                                                  options, k=beam, maxlen=30, stochastic=stochastic)
             if not stochastic:
                 best_one = np.argmin(score)
                 sample = sample[best_one]

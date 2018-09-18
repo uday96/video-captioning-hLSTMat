@@ -10,8 +10,8 @@ import metrics
 from tensorflow.python.framework import ops
 
 def train(model_options,
-        dataset_name = 'msvd',
-        cnn_name = 'resnet',
+        dataset_name = 'MSVD',
+        cnn_name = 'ResNet50',
         train_data_ids_path = config.MSVD_DATA_IDS_TRAIN_PATH,
         val_data_ids_path = config.MSVD_DATA_IDS_VAL_PATH,
         test_data_ids_path = config.MSVD_DATA_IDS_TEST_PATH,
@@ -22,7 +22,7 @@ def train(model_options,
         train_caps_path = config.MSVD_VID_CAPS_TRAIN_PATH,
         val_caps_path = config.MSVD_VID_CAPS_VAL_PATH,
         test_caps_path = config.MSVD_VID_CAPS_TEST_PATH,
-        feats_dir = config.MSVD_FEATS_RESNET_DIR,
+        feats_dir = config.MSVD_FEATS_DIR,
         save_dir = config.SAVE_DIR_PATH,
         word_dim = 512,   # word embeddings size
         ctx_dim = 2048,   # video cnn feature dimension
@@ -44,15 +44,16 @@ def train(model_options,
         ctx2out = True,
         prev2out = True,
         dispFreq = 10,
-        validFreq = 10,
-        saveFreq = 10, # save the parameters after every saveFreq updates
-        sampleFreq = 10, # generate some samples after every sampleFreq updates
+        validFreq = 2000,
+        saveFreq = -1, # save the parameters after every saveFreq updates
+        sampleFreq = 100, # generate some samples after every sampleFreq updates
         verbose = True,
         debug = False,
         reload_model = False,
         from_dir = '',
         ctx_frames = 28, # 26 when compare
-        random_seed = 1234
+        random_seed = 1234,
+        beam_search = True
         ):
 
     tf.set_random_seed(random_seed)
@@ -61,7 +62,7 @@ def train(model_options,
 
     model = Model()
 
-    print 'Loading data'
+    print 'loading data'
     engine = data_engine.Movie2Caption(dataset_name,cnn_name,train_data_ids_path, val_data_ids_path, test_data_ids_path,
                 vocab_path, reverse_vocab_path, mb_size_train, mb_size_test, maxlen_caption,
                 train_caps_path, val_caps_path, test_caps_path, feats_dir)
@@ -456,6 +457,7 @@ def train_util(params):
     save_dir = params['save_dir']
     print('current save dir : '+save_dir)
     utils.create_dir_if_not_exist(save_dir)
+
     reload_model = params['reload_model']
     if reload_model:
         print 'preparing reload'
@@ -468,9 +470,15 @@ def train_util(params):
         print 'setting current model config with the old one'
         model_config_old = utils.read_from_json(from_dir_backup + 'model_config.json')
         raise NotImplementedError()
+
+    feats_dir = params['feats_dir']+params['cnn_name']+"/"
+    print('feats dir : '+feats_dir)
+    params['feats_dir'] = feats_dir
+
     config_save_path = save_dir+"model_config.json"
     print('saving model config into %s' % config_save_path)
     utils.write_to_json(params, config_save_path)
+
     t0 = time.time()
     print('training an attention model')
     train(params, **params)

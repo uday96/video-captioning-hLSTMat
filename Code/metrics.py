@@ -83,12 +83,19 @@ def generate_sample_gpu_single_process(sess,
         ctxs, ctx_masks = engine.prepare_data_for_blue(whichset)
         for i, ctx, ctx_mask in zip(range(len(ctxs)), ctxs, ctx_masks):
             print 'sampling %d/%d'%(i,len(ctxs))
+            stochastic = not options['beam_search']
+            if stochastic:
+                kbeam = 1
+            else:
+                kbeam = 5
             sample, score, _, _ = model.gen_sample(sess,
                 None, f_init, f_next, ctx, ctx_mask, options,
-                k=beam, maxlen=MAXLEN)
-            
-            sidx = np.argmin(score)
-            sample = sample[sidx]
+                k=kbeam, maxlen=MAXLEN, stochastic=stochastic)
+            if not stochastic:
+                sidx = np.argmin(score)
+                sample = sample[sidx]
+            else:
+                sample = [sample]
             samples.append(sample)
         samples = _seqs2words(samples)
         return samples
