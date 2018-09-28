@@ -67,8 +67,15 @@ def flatten_list_of_list(l):
     return [item for sublist in l for item in sublist]
 
 # get the list of parameters: Note that tparams must be OrderedDict
-def itemlist(tfparams):
-    return [vv for kk, vv in tfparams.iteritems()]
+def itemlist(tfparams, options):
+    param_list = []
+    for kk, vv in tfparams.iteritems():
+        if not options['ctx2out']:
+            if not (("_att" in kk) or ("to_" in kk)):
+                param_list.append(vv)
+        else:
+            param_list.append(vv)
+    return param_list
 
 def shuffle_array(array):
 	return rng_numpy.shuffle(array)

@@ -209,22 +209,17 @@ class Layers(object):
         # projected context
         with tf.name_scope("pctx_"):
             pctx_ = batch_matmul(context, tfparams[_p(prefix, 'Wc_att')]) + tfparams[_p(prefix, 'b_att')]    # (64,28,2048)*(2048,2048)+(2048,) = (64,28,2048) or (1,28,2048) in sampling
-        # if one_step:
-        #     # tensor.dot will remove broadcasting dim
-        #     # raise NotImplementedError()
-        #     pass    # INCOMPLETE    VERIFIED - broadcast not needed in tf
         # projected x
         with tf.name_scope("state_below"):
             state_below = batch_matmul(state_below, tfparams[_p(prefix, 'W')]) + tfparams[_p(prefix, 'b')]    # (19,64,512)*(512,2048)+(2048) = (19,64,2048) or (m,2048) in sampling
         Wd_att = tfparams[_p(prefix, 'Wd_att')]  # (512,2048)
         U_att = tfparams[_p(prefix, 'U_att')]    # (2048,1)
         c_att = tfparams[_p(prefix, 'c_att')] # (1,)
+
         if options['selector']:
             W_sel = tfparams[_p(prefix, 'W_sel')]
             b_sel = tfparams[_p(prefix, 'b_sel')]
-        else:
-            W_sel = tf.constant(0., shape=(1), dtype=tf.float32)
-            b_sel = tf.constant(0., shape=(1), dtype=tf.float32)
+
         U = tfparams[_p(prefix, 'U')]    # (512,2048)
 
         pctx_shape = tf.shape(pctx_, name="pctx_shape")
@@ -276,6 +271,8 @@ class Layers(object):
                 sel_shape = tf.shape(sel_)
                 sel_ = tf.reshape(sel_,[sel_shape[0]])    # (64,) or (m,) in sampling
                 ctx_ = sel_[:, None] * ctx_     # (64,1)*(64,2048) = (64,2048) or (m,2048) in sampling
+            else:
+                sel_ = tf.zeros(shape=(n_samples,), dtype=tf.float32)
             rval = [h, c, alpha, ctx_, sel_]
             return rval
 

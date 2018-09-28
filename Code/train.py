@@ -7,7 +7,6 @@ import data_engine
 import tensorflow as tf
 import numpy as np
 import metrics
-from tensorflow.python.framework import ops
 
 def train(model_options,
         dataset_name = 'MSVD',
@@ -112,11 +111,17 @@ def train(model_options,
     print 'building f_log_probs'
     f_log_probs = -COST
 
+    print 'check trainables'
+    wrt = utils.itemlist(tfparams, model_options)
+    trainables = tf.trainable_variables()
+    print len(wrt),len(trainables)
+    # assert len(wrt)==len(trainables)
+
     COST = tf.reduce_mean(COST, name="LOSS")
     if decay_c > 0.:
         decay_c = tf.Variable(np.float32(decay_c), trainable=False, name='decay_c')
         weight_decay = 0.
-        for kk, vv in tfparams.iteritems():
+        for vv in wrt:
             weight_decay += tf.reduce_sum(vv ** 2)
         weight_decay *= decay_c
         COST += weight_decay
@@ -137,11 +142,6 @@ def train(model_options,
 
     print 'building f_alpha'
     f_alpha = [ALPHAS, BETAS]
-
-    print 'check trainables'
-    wrt = utils.itemlist(tfparams)
-    trainables = tf.trainable_variables()
-    assert len(wrt)==len(trainables)
 
     print 'build train fns'
     UPDATE_OPS = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
@@ -188,6 +188,9 @@ def train(model_options,
     # Launch the graph
     with tf.Session() as sess:
         sess.run(var_init)
+        if reload_model:
+            print 'restoring model...'
+            saver.restore(sess, from_dir+"model_best_so_far.ckpt")
         for eidx in xrange(max_epochs):
             n_samples = 0
             train_costs = []
@@ -220,6 +223,7 @@ def train(model_options,
                                         MASK: mask,
                                         CTX: ctx,
                                         CTX_MASK: ctx_mask})
+
                 # writer.close()
                 if np.isnan(cost) or np.isinf(cost):
                     print 'NaN detected in cost'
@@ -469,9 +473,18 @@ def train_util(params):
         print 'from_dir ', from_dir_backup
         print 'setting current model config with the old one'
         model_config_old = utils.read_from_json(from_dir_backup + 'model_config.json')
-        raise NotImplementedError()
-
-    feats_dir = params['feats_dir']+params['cnn_name']+"/"
+        model_config_old['reload_model'] = True
+        model_config_old['save_dir'] = params['save_dir']
+        model_config_old['from_dir'] = params['from_dir']
+        model_config_old['max_epochs'] = params['max_epochs']
+        model_config_old['dispFreq'] = params['dispFreq']
+        model_config_old['sampleFreq'] = params['sampleFreq']
+        model_config_old['validFreq'] = params['validFreq']
+        model_config_old['debug'] = params['debug']
+        params = model_config_old
+        feats_dir = params['feats_dir']
+    else:
+        feats_dir = params['feats_dir']+params['cnn_name']+"/"
     print('feats dir : '+feats_dir)
     params['feats_dir'] = feats_dir
 

@@ -152,7 +152,7 @@ def prepare_data(engine, IDs, mode="train"):
 def test_data_engine():
     # from sklearn.cross_validation import KFold
     dataset_name = 'MSVD'
-    cnn_name = 'InceptionV3'
+    cnn_name = 'ResNet50'
     train_data_ids_path = config.MSVD_DATA_IDS_TRAIN_PATH
     val_data_ids_path = config.MSVD_DATA_IDS_VAL_PATH
     test_data_ids_path = config.MSVD_DATA_IDS_TEST_PATH

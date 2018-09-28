@@ -41,11 +41,12 @@ MSVD_DATA_IDS_TRAIN_PATH = "../Data/MSVD/data_ids_train.txt"
 MSVD_DATA_IDS_VAL_PATH = "../Data/MSVD/data_ids_val.txt"
 MSVD_DATA_IDS_TEST_PATH = "../Data/MSVD/data_ids_test.txt"
 
-SAVE_DIR_PATH = "../Results/Exp3_InceptionV3/"
+SAVE_DIR_PATH = "../Results/Debug/"
+# SAVE_DIR_PATH = "../Results/Exp5_ResNet50_BasicLSTM_contd/"
 
 params = {
 	'dataset_name' : 'MSVD',
-    'cnn_name' : 'InceptionV3',
+    'cnn_name' : 'ResNet50',
     'train_data_ids_path' : MSVD_DATA_IDS_TRAIN_PATH,
     'val_data_ids_path' : MSVD_DATA_IDS_VAL_PATH,
     'test_data_ids_path' : MSVD_DATA_IDS_TEST_PATH,
@@ -62,10 +63,10 @@ params = {
     'ctx_dim' : 2048,	# video cnn feature dimension
     'lstm_dim' : 512,	# lstm unit size
     'patience' : 20,
-    'max_epochs' : 30,
+    'max_epochs' : 20,
     'decay_c' : 1e-4,
     'alpha_entropy_r' : 0.,
-    'alpha_c' : 0.70602,
+    'alpha_c' : 0.70602, # 0.70602
     'clip_c': 10.,
     'lrate' : 0.01,
     'vocab_size' : 20000, # n_words
@@ -74,27 +75,35 @@ params = {
     'batch_size' : 64, # 64	# for trees use 25
     'metric' : 'everything',	# set to perplexity on DVS # blue, meteor, or both
     'use_dropout' : True,   #True
-    'selector' : True,
-    'ctx2out' : True,
+    'selector' : True, # True
+    'ctx2out' : True,  # True
     'prev2out' : True,
     # in the unit of minibatches
-    'dispFreq' : 10,
-    'validFreq' : 2000,
+    'dispFreq' : 10,    # 10
+    'validFreq' : 2000,    # 2000
     'saveFreq' : -1, # this is disabled, now use sampleFreq instead
-    'sampleFreq' : 100,
+    'sampleFreq' : 100,   # 100
     'verbose' : True,
     'debug' : False,    # False
-    'reload_model' : False,
+    'reload_model' : False, # False
     'from_dir' : '',
     'ctx_frames' : 28, # 26 when compare 
     'random_seed' : 1234,
     'beam_search' : True,
 }
 
-# params = {
-#         'n_layers_out':1, # for predicting next word        
-#         'n_layers_init':0, 
-#         'encoder_dim': 300,
-#         'valid_batch_size':200,
-#         'OutOf':None, # used to be 240, for motionfeature use 26
-#         }
+'''
+Basic LSTM :
+    - Only bottom LSTM layer without attention
+    - selector : False
+    - ctx2out : False
+    - alpha_c : 0.
+    - alpha_entropy_r : 0.
+
+hLSTMt :
+    - 2 layer LSTM with attention but no adjusted attention
+    - selector : False
+    - ctx2out : True
+    - alpha_c : 0.70602
+    - alpha_entropy_r : 0.
+'''
