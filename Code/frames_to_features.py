@@ -2,6 +2,10 @@ from keras.applications.resnet50 import ResNet50
 from keras.applications.resnet50 import preprocess_input as resnet50_preprocess_input
 from keras.applications.inception_v3 import InceptionV3
 from keras.applications.inception_v3 import preprocess_input as inception_v3_preprocess_input
+from keras.applications.vgg19 import VGG19
+from keras.applications.vgg19 import preprocess_input as vgg19_preprocess_input
+from cnn.resnet152 import ResNet152
+from keras.applications.imagenet_utils import preprocess_input
 from keras.preprocessing import image
 import numpy as np
 import utils, config
@@ -13,12 +17,24 @@ def get_ResNet50_model():
     width = 224
     return model, height, width, resnet50_preprocess_input
 
-def get_InceptionV3_model():
+def get_ResNet152_model():
     # get pool5 layer output
+    model = ResNet152(weights='imagenet', include_top=False, pooling="avg")
+    height = 224
+    width = 224
+    return model, height, width, preprocess_input
+
+def get_InceptionV3_model():
     model = InceptionV3(weights='imagenet', include_top=False, pooling="avg")
     height = 229
     width = 229
     return model, height, width, inception_v3_preprocess_input
+
+def get_VGG19_model():
+    model = VGG19(weights='imagenet', include_top=False, pooling="avg")
+    height = 224
+    width = 224
+    return model, height, width, vgg19_preprocess_input
 
 def img_to_feat(img_path, height, width, preprocess_input, model):
     img = image.load_img(img_path, target_size=(height, width))
@@ -41,9 +57,15 @@ def frames_to_feat(cnn, vid_ids_path, num_vids):
     if cnn=="ResNet50":
         model, height, width, preprocess_input = get_ResNet50_model()
         FEAT_DIM = config.RESNET_FEAT_DIM
-    if cnn=="InceptionV3":
+    elif cnn=="ResNet152":
+        model, height, width, preprocess_input = get_ResNet152_model()
+        FEAT_DIM = config.RESNET_FEAT_DIM
+    elif cnn=="InceptionV3":
         model, height, width, preprocess_input = get_InceptionV3_model()
         FEAT_DIM = config.INCEPTION_FEAT_DIM
+    elif cnn=="VGG19":
+        model, height, width, preprocess_input = get_VGG19_model()
+        FEAT_DIM = config.VGG_FEAT_DIM
     else:
         raise NotImplementedError()
 
@@ -73,8 +95,7 @@ def frames_to_feat(cnn, vid_ids_path, num_vids):
         np.save(feat_save_path+vid+".npy",vid_feats)
 
 if __name__ == '__main__':
-    # print("extracting features from ResNet50...")
-    # frames_to_feat("ResNet50",config.DATA_DIR+"present_vid_ids.txt", config.TOTAL_VIDS)
-    print("extracting features from InceptionV3...")
-    frames_to_feat("InceptionV3",config.DATA_DIR+"present_vid_ids.txt", config.TOTAL_VIDS)
+    cnn = "ResNet152"
+    print("extracting features from %s..."%cnn)
+    frames_to_feat(cnn, config.DATA_DIR+"present_vid_ids.txt", config.TOTAL_VIDS)
     

@@ -33,6 +33,7 @@ MSVD_FEATS_DIR = "../Data/MSVD/Features/"
 
 RESNET_FEAT_DIM = 2048
 INCEPTION_FEAT_DIM = 2048
+VGG_FEAT_DIM = 512
 
 MAX_FRAMES = 360
 FRAME_SPACING = 28
@@ -42,18 +43,18 @@ MSVD_DATA_IDS_VAL_PATH = "../Data/MSVD/data_ids_val.txt"
 MSVD_DATA_IDS_TEST_PATH = "../Data/MSVD/data_ids_test.txt"
 
 SAVE_DIR_PATH = "../Results/Debug/"
-# SAVE_DIR_PATH = "../Results/Exp5_ResNet50_BasicLSTM_contd/"
+# SAVE_DIR_PATH = "../Results/Exp5_ResNet50_hLSTMat_30epoch/"
 
 params = {
 	'dataset_name' : 'MSVD',
-    'cnn_name' : 'ResNet50',
+    'cnn_name' : 'VGG19',
     'train_data_ids_path' : MSVD_DATA_IDS_TRAIN_PATH,
     'val_data_ids_path' : MSVD_DATA_IDS_VAL_PATH,
     'test_data_ids_path' : MSVD_DATA_IDS_TEST_PATH,
     'vocab_path' : MSVD_VOCAB_PATH,
     'reverse_vocab_path' : MSVD_REVERSE_VOCAB_PATH,
-    'mb_size_train' : 64, # 64
-    'mb_size_test' : 128, # 128
+    'mb_size_train' : 1, # 64
+    'mb_size_test' : 1, # 128
     'train_caps_path' : MSVD_VID_CAPS_TRAIN_PATH,
     'val_caps_path' : MSVD_VID_CAPS_VAL_PATH,
     'test_caps_path' : MSVD_VID_CAPS_TEST_PATH,
@@ -63,7 +64,7 @@ params = {
     'ctx_dim' : 2048,	# video cnn feature dimension
     'lstm_dim' : 512,	# lstm unit size
     'patience' : 20,
-    'max_epochs' : 20,
+    'max_epochs' : 300,
     'decay_c' : 1e-4,
     'alpha_entropy_r' : 0.,
     'alpha_c' : 0.70602, # 0.70602
@@ -72,7 +73,7 @@ params = {
     'vocab_size' : 20000, # n_words
     'maxlen_caption' : 30,	# max length of the descprition
     'optimizer' : 'adadelta',
-    'batch_size' : 64, # 64	# for trees use 25
+    'batch_size' : 1, # 64	# for trees use 25
     'metric' : 'everything',	# set to perplexity on DVS # blue, meteor, or both
     'use_dropout' : True,   #True
     'selector' : True, # True
@@ -82,7 +83,7 @@ params = {
     'dispFreq' : 10,    # 10
     'validFreq' : 2000,    # 2000
     'saveFreq' : -1, # this is disabled, now use sampleFreq instead
-    'sampleFreq' : 100,   # 100
+    'sampleFreq' : 10,   # 100
     'verbose' : True,
     'debug' : False,    # False
     'reload_model' : False, # False
@@ -97,6 +98,7 @@ Basic LSTM :
     - Only bottom LSTM layer without attention
     - selector : False
     - ctx2out : False
+    - prev2out : True
     - alpha_c : 0.
     - alpha_entropy_r : 0.
 
@@ -104,6 +106,15 @@ hLSTMt :
     - 2 layer LSTM with attention but no adjusted attention
     - selector : False
     - ctx2out : True
+    - prev2out : True
+    - alpha_c : 0.70602
+    - alpha_entropy_r : 0.
+
+hLSTMat :
+    - 2 layer LSTM with adjusted temporal attention
+    - selector : True
+    - ctx2out : True
+    - prev2out : True
     - alpha_c : 0.70602
     - alpha_entropy_r : 0.
 '''

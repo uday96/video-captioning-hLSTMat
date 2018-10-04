@@ -57,8 +57,6 @@ def train(model_options,
 
     tf.set_random_seed(random_seed)
 
-    utils.write_to_json(model_options, '%smodel_options.json'%save_dir)
-
     model = Model()
 
     print 'loading data'
@@ -71,6 +69,9 @@ def train(model_options,
     model_options['vocab_size'] = engine.vocab_size
     vocab_size = engine.vocab_size
     print 'n_words:', model_options['vocab_size']
+    print 'ctx_dim:', model_options['ctx_dim']
+
+    utils.write_to_json(model_options, '%smodel_options.json'%save_dir)
 
     # set test values, for debugging
     idx = engine.kf_train[0]
@@ -277,10 +278,10 @@ def train(model_options,
                     ctx_mask_s = ctx_mask   # (m,28)
                     model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
                     print '------------- sampling from valid ----------'
-                    idx = engine.kf_val[np.random.randint(1, len(engine.kf_val) - 1)]
-                    tags = [engine.val_data_ids[index] for index in idx]
-                    x_s, mask_s, ctx_s, mask_ctx_s = data_engine.prepare_data(engine, tags,"val")
-                    model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
+                    # idx = engine.kf_val[np.random.randint(1, len(engine.kf_val) - 1)]
+                    # tags = [engine.val_data_ids[index] for index in idx]
+                    # x_s, mask_s, ctx_s, mask_ctx_s = data_engine.prepare_data(engine, tags,"val")
+                    # model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
                     print ""
 
                 if validFreq != -1 and np.mod(uidx, validFreq) == 0:
