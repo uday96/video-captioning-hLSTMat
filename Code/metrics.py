@@ -15,7 +15,7 @@ import utils, config
 MAXLEN = 50
 
 # Only for testing
-def build_sample_pairs(IDs, engine, mode):
+def build_sample_pairs_test(IDs, engine, mode):
     D = OrderedDict()
     for ID in IDs:
         vidID, capID = ID.split('|')
@@ -150,27 +150,27 @@ def compute_score(sess,
     return scores_final, processes, queue, rqueue, shared_params
 
 def test_cocoeval():
-    dataset_name = 'msvd'
-    cnn_name = 'resnet'
+    dataset_name = 'MSVD'
+    cnn_name = 'ResNet152'
     train_data_ids_path = config.MSVD_DATA_IDS_TRAIN_PATH
     val_data_ids_path = config.MSVD_DATA_IDS_VAL_PATH
     test_data_ids_path = config.MSVD_DATA_IDS_TEST_PATH
     vocab_path = config.MSVD_VOCAB_PATH
     reverse_vocab_path = config.MSVD_REVERSE_VOCAB_PATH
-    mb_size_train = 20
-    mb_size_test = 20
-    maxlen_caption = 50
+    mb_size_train = 64
+    mb_size_test = 128
+    maxlen_caption = 30
     train_caps_path = config.MSVD_VID_CAPS_TRAIN_PATH
     val_caps_path = config.MSVD_VID_CAPS_VAL_PATH
     test_caps_path = config.MSVD_VID_CAPS_TEST_PATH
-    feats_dir = config.MSVD_FEATS_RESNET_DIR
+    feats_dir = config.MSVD_FEATS_DIR+cnn_name+"/"
     engine = data_engine.Movie2Caption(dataset_name,cnn_name,train_data_ids_path, val_data_ids_path, test_data_ids_path,
                 vocab_path, reverse_vocab_path, mb_size_train, mb_size_test, maxlen_caption,
                 train_caps_path, val_caps_path, test_caps_path, feats_dir)
     samples_valid = engine.val_data_ids
     samples_test = engine.test_data_ids
-    samples_valid = build_sample_pairs(samples_valid, engine, mode="val")
-    samples_test = build_sample_pairs(samples_test, engine, mode="test")
+    samples_valid = build_sample_pairs_test(samples_valid, engine, mode="val")
+    samples_test = build_sample_pairs_test(samples_test, engine, mode="test")
     valid_score, test_score = score_with_cocoeval(samples_valid, samples_test, engine)
     print valid_score
 

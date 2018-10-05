@@ -47,7 +47,7 @@ SAVE_DIR_PATH = "../Results/Debug/"
 
 params = {
 	'dataset_name' : 'MSVD',
-    'cnn_name' : 'VGG19',
+    'cnn_name' : 'ResNet152',
     'train_data_ids_path' : MSVD_DATA_IDS_TRAIN_PATH,
     'val_data_ids_path' : MSVD_DATA_IDS_VAL_PATH,
     'test_data_ids_path' : MSVD_DATA_IDS_TEST_PATH,
@@ -64,7 +64,7 @@ params = {
     'ctx_dim' : 2048,	# video cnn feature dimension
     'lstm_dim' : 512,	# lstm unit size
     'patience' : 20,
-    'max_epochs' : 300,
+    'max_epochs' : 250,
     'decay_c' : 1e-4,
     'alpha_entropy_r' : 0.,
     'alpha_c' : 0.70602, # 0.70602

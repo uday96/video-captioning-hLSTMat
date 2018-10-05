@@ -25,7 +25,7 @@ class Movie2Caption(object):
         self.load_data()
     
     def get_video_features(self, vid_id):
-        if self.cnn_name == 'ResNet50' or self.cnn_name == 'InceptionV3':
+        if self.cnn_name in ['ResNet50', 'ResNet152', 'InceptionV3']:
             feat = np.load(self.feats_dir+vid_id+'.npy')
         else:
             raise NotImplementedError()
@@ -98,7 +98,7 @@ class Movie2Caption(object):
         self.vocab = utils.read_from_json(self.vocab_path)
         self.reverse_vocab = utils.read_from_pickle(self.reverse_vocab_path)
         self.vocab_size = len(self.vocab)
-        if self.cnn_name == 'ResNet50' or self.cnn_name == 'InceptionV3':
+        if self.cnn_name in ['ResNet50', 'ResNet152', 'InceptionV3']:
             self.ctx_dim = 2048
         else:
             raise NotImplementedError()
@@ -152,7 +152,7 @@ def prepare_data(engine, IDs, mode="train"):
 def test_data_engine():
     # from sklearn.cross_validation import KFold
     dataset_name = 'MSVD'
-    cnn_name = 'ResNet50'
+    cnn_name = 'ResNet152'
     train_data_ids_path = config.MSVD_DATA_IDS_TRAIN_PATH
     val_data_ids_path = config.MSVD_DATA_IDS_VAL_PATH
     test_data_ids_path = config.MSVD_DATA_IDS_TEST_PATH
