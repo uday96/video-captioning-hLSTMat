@@ -43,11 +43,10 @@ MSVD_DATA_IDS_VAL_PATH = "../Data/MSVD/data_ids_val.txt"
 MSVD_DATA_IDS_TEST_PATH = "../Data/MSVD/data_ids_test.txt"
 
 SAVE_DIR_PATH = "../Results/Debug/"
-# SAVE_DIR_PATH = "../Results/Exp5_ResNet50_hLSTMat_30epoch/"
 
 params = {
 	'dataset_name' : 'MSVD',
-    'cnn_name' : 'ResNet152',
+    'cnn_name' : 'VGG19',
     'train_data_ids_path' : MSVD_DATA_IDS_TRAIN_PATH,
     'val_data_ids_path' : MSVD_DATA_IDS_VAL_PATH,
     'test_data_ids_path' : MSVD_DATA_IDS_TEST_PATH,

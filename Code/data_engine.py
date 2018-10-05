@@ -25,7 +25,7 @@ class Movie2Caption(object):
         self.load_data()
     
     def get_video_features(self, vid_id):
-        if self.cnn_name in ['ResNet50', 'ResNet152', 'InceptionV3']:
+        if self.cnn_name in ['ResNet50', 'ResNet152', 'InceptionV3', 'VGG19']:
             feat = np.load(self.feats_dir+vid_id+'.npy')
         else:
             raise NotImplementedError()
@@ -100,6 +100,8 @@ class Movie2Caption(object):
         self.vocab_size = len(self.vocab)
         if self.cnn_name in ['ResNet50', 'ResNet152', 'InceptionV3']:
             self.ctx_dim = 2048
+        elif self.cnn_name in ['VGG19']:
+            self.ctx_dim = 512
         else:
             raise NotImplementedError()
         self.train_ids = self.get_vid_ids(self.train_data_ids)

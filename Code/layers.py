@@ -54,7 +54,7 @@ class Layers(object):
                                ortho_weight(dim),
                                ortho_weight(dim)], axis=1)
         params[_p(prefix, 'U')] = U     # to_lstm_U:(512,2048)
-        params[_p(prefix, 'b')] = np.zeros((4 * dim,)).astype('float32')    # to_lstm_b:(2048,)
+        params[_p(prefix, 'b')] = np.zeros((4*dim,)).astype('float32')    # to_lstm_b:(2048,)
         return params
 
     # This function implements the lstm fprop
@@ -148,7 +148,7 @@ class Layers(object):
                                ortho_weight(dim)], axis=1)
         params[_p(prefix, 'U')] = U     # bo_lstm_U:(512,2048)
         # bias to LSTM
-        params[_p(prefix, 'b')] = np.zeros((4 * dim,)).astype('float32')      # bo_lstm_b:(2048,)
+        params[_p(prefix, 'b')] = np.zeros((4*dim,)).astype('float32')      # bo_lstm_b:(2048,)
         # attention: context -> hidden
         Wc_att = norm_weight(dimctx, ortho=False)
         params[_p(prefix, 'Wc_att')] = Wc_att    # bo_lstm_Wc_att:(2048,2048)
@@ -224,7 +224,7 @@ class Layers(object):
 
         pctx_shape = tf.shape(pctx_, name="pctx_shape")
         init_alpha = tf.zeros(shape=(n_samples, pctx_shape[1]), dtype=tf.float32, name="init_alpha_fill")
-        init_ctx = tf.zeros(shape=(n_samples, U.shape[1]), dtype=tf.float32, name="init_ctx_fill")
+        init_ctx = tf.zeros(shape=(n_samples, U_att.shape[0]), dtype=tf.float32, name="init_ctx_fill")
         init_beta = tf.zeros(shape=(n_samples,), dtype=tf.float32, name="init_beta_fill")
 
         def _slice(_x, n, dim):
