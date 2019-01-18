@@ -89,9 +89,9 @@ class Movie2Caption(object):
         utils.shuffle_array(self.train_data_ids)
         utils.shuffle_array(self.val_data_ids)
         utils.shuffle_array(self.test_data_ids)
-        self.train_data_ids = self.train_data_ids[:1]   # ONLY FOR DEBUG - REMOVE
-        self.val_data_ids = self.val_data_ids[:1]
-        self.test_data_ids = self.test_data_ids[:1]
+        # self.train_data_ids = self.train_data_ids[:1]   # ONLY FOR DEBUG - REMOVE
+        # self.val_data_ids = self.val_data_ids[:1]
+        # self.test_data_ids = self.test_data_ids[:1]
         self.train_caps = utils.read_from_json(self.train_caps_path)
         self.val_caps = utils.read_from_json(self.val_caps_path)
         self.test_caps = utils.read_from_json(self.test_caps_path)

@@ -147,7 +147,13 @@ def train(model_options,
     print 'build train fns'
     UPDATE_OPS = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(UPDATE_OPS):
-        optimizer = tf.train.AdadeltaOptimizer(learning_rate=1.0, rho=0.95, epsilon=1e-6).minimize(loss=COST, var_list=wrt)
+        # optimizer = tf.train.AdadeltaOptimizer(learning_rate=1.0, rho=0.95, epsilon=1e-06).minimize(loss=COST, var_list=wrt)
+        optimizer = tf.train.AdadeltaOptimizer(learning_rate=1.0, rho=0.95, epsilon=1e-06)
+        gradients, variables = zip(*optimizer.compute_gradients(loss=COST, var_list=wrt))
+        gradients, _ = tf.clip_by_global_norm(gradients, clip_c)
+        capped_grads_and_vars = zip(gradients, variables)
+        TRAIN_OP = optimizer.apply_gradients(capped_grads_and_vars)
+
 
     # Initialize all variables
     var_init = tf.global_variables_initializer()
@@ -210,20 +216,20 @@ def train(model_options,
                     print 'Minibatch with zero sample under length ', maxlen
                     continue
 
+                # writer = tf.summary.FileWriter("graph_cost", sess.graph)
+                cost, alphas, betas = sess.run([COST,ALPHAS,BETAS], feed_dict={
+                                        X: x,
+                                        MASK: mask,
+                                        CTX: ctx,
+                                        CTX_MASK: ctx_mask})
+
                 ud_start = time.time()
-                sess.run(optimizer, feed_dict={
+                sess.run(TRAIN_OP, feed_dict={
                                         X: x,
                                         MASK: mask,
                                         CTX: ctx,
                                         CTX_MASK: ctx_mask})
                 ud_duration = time.time() - ud_start
-
-                # writer = tf.summary.FileWriter("graph_cost", sess.graph)
-                cost = sess.run(COST, feed_dict={
-                                        X: x,
-                                        MASK: mask,
-                                        CTX: ctx,
-                                        CTX_MASK: ctx_mask})
 
                 # writer.close()
                 if np.isnan(cost) or np.isinf(cost):
@@ -278,10 +284,10 @@ def train(model_options,
                     ctx_mask_s = ctx_mask   # (m,28)
                     model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
                     print '------------- sampling from valid ----------'
-                    # idx = engine.kf_val[np.random.randint(1, len(engine.kf_val) - 1)]
-                    # tags = [engine.val_data_ids[index] for index in idx]
-                    # x_s, mask_s, ctx_s, mask_ctx_s = data_engine.prepare_data(engine, tags,"val")
-                    # model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
+                    idx = engine.kf_val[np.random.randint(1, len(engine.kf_val) - 1)]
+                    tags = [engine.val_data_ids[index] for index in idx]
+                    x_s, mask_s, ctx_s, mask_ctx_s = data_engine.prepare_data(engine, tags,"val")
+                    model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
                     print ""
 
                 if validFreq != -1 and np.mod(uidx, validFreq) == 0:
