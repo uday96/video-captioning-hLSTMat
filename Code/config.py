@@ -13,10 +13,21 @@ MSVD_VID_CAPS_TRAIN_PATH = '../Data/MSVD/MSVD_vid_caps_train.json'
 MSVD_VID_CAPS_VAL_PATH = '../Data/MSVD/MSVD_vid_caps_val.json'
 MSVD_VID_CAPS_TEST_PATH = '../Data/MSVD/MSVD_vid_caps_test.json'
 
+MURALI_MSVD_VID_CAPS_TRAIN_PATH = '../Data/MSVD/Murali_Dataset/Processed_Data/MSVD_vid_caps_train.json'
+MURALI_MSVD_VID_CAPS_TEST_PATH = '../Data/MSVD/Murali_Dataset/Processed_Data/MSVD_vid_caps_test.json'
+
+MURALI_MSVD_CAPTIONS_TRAIN_PATH = '../Data/MSVD/Murali_Dataset/BtrainCaptions/'
+MURALI_MSVD_CAPTIONS_TEST_PATH = '../Data/MSVD/Murali_Dataset/BtestCaptions/'
+
 TOTAL_VIDS = 1970
 TRAIN_VIDS = 1200
 TEST_VIDS = 670
 VAL_VIDS = 100
+
+MURALI_TOTAL_VIDS = 1664
+MURALI_TRAIN_VIDS = 1280
+MURALI_TEST_VIDS = 384
+MURALI_VAL_VIDS = 0
 
 MSVD_FINAL_CORPUS_TRAIN_PATH = "../Data/MSVD/MSVD_final_corpus_train.csv"
 MSVD_FINAL_CORPUS_VAL_PATH = "../Data/MSVD/MSVD_final_corpus_val.csv"
