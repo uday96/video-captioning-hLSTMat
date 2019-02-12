@@ -9,6 +9,9 @@ MSVD_FINAL_CORPUS_PATH = "../Data/MSVD/MSVD_final_corpus.csv"
 MSVD_VOCAB_PATH = '../Data/MSVD/MSVD_vocab.json'
 MSVD_REVERSE_VOCAB_PATH = '../Data/MSVD/MSVD_reverse_vocab.pkl'
 
+MURALI_MSVD_VOCAB_PATH = '../Data/MSVD/Murali_Dataset/Processed_Data/MSVD_vocab.json'
+MURALI_MSVD_REVERSE_VOCAB_PATH = '../Data/MSVD/Murali_Dataset/Processed_Data/MSVD_reverse_vocab.pkl'
+
 MSVD_VID_CAPS_TRAIN_PATH = '../Data/MSVD/MSVD_vid_caps_train.json'
 MSVD_VID_CAPS_VAL_PATH = '../Data/MSVD/MSVD_vid_caps_val.json'
 MSVD_VID_CAPS_TEST_PATH = '../Data/MSVD/MSVD_vid_caps_test.json'

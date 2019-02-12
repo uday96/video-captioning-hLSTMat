@@ -65,6 +65,7 @@ def gen_vocab(df,whichdata):
 	elif whichdata == "val":
 		outfname = config.MURALI_MSVD_VID_CAPS_VAL_PATH
 		dictsize = config.MURALI_VAL_VIDS
+		capspath = None
 		raise NotImplementedError()
 	else:
 		outfname = config.MURALI_MSVD_VID_CAPS_TRAIN_PATH
@@ -74,18 +75,25 @@ def gen_vocab(df,whichdata):
 	punct_dict = get_punctuations()
 	translator = string.maketrans("","")
 	vid_caps_dict = {}
-	path = 
-	for index in dictsize:
-
-	for index, row in df.iterrows():
-		vid_id = str(row["VideoID"])+"_"+str(row["Start"])+"_"+str(row["End"])
-		tokens, _ = tokenize(row["Description"],punct_dict,translator)
-		if(vid_id in vid_caps_dict):
-			vid_caps_dict[vid_id].append(tokens)
-		else:
-			vid_caps_dict[vid_id] = [tokens]
-		if whichdata=="train":
-			vocab |= set(tokens)
+	for index in range(dictsize):
+		vid_id = whichdata+"_"+str(index)
+		descriptions = utils.read_file_to_list(capspath+str(index)+".txt")[0].split("|")
+		vid_caps = []
+		for desc in descriptions:
+			try:
+				cap = desc.strip().encode('UTF-8')
+				if len(cap) > 0:
+					vid_caps.append(cap)
+			except Exception as e:
+				print vid_id, " : ", desc.strip()
+		for vid_cap in vid_caps:
+			tokens, _ = tokenize(vid_cap,punct_dict,translator)
+			if(vid_id in vid_caps_dict):
+				vid_caps_dict[vid_id].append(tokens)
+			else:
+				vid_caps_dict[vid_id] = [tokens]
+			if whichdata=="train":
+				vocab |= set(tokens)
 	utils.write_to_json(vid_caps_dict,outfname)
 	print("Size of "+whichdata+" vid caps dict: "+str(len(vid_caps_dict)))
 	assert len(vid_caps_dict)==dictsize
@@ -100,8 +108,8 @@ def gen_vocab(df,whichdata):
 		# vocab_rev_dict[0] = '<bos>'
 		vocab_rev_dict[0] = '<eos>'
 		vocab_rev_dict[1] = 'UNK'
-		utils.write_to_json(vocab_dict,config.MSVD_VOCAB_PATH)
-		utils.write_to_pickle(vocab_rev_dict,config.MSVD_REVERSE_VOCAB_PATH)
+		utils.write_to_json(vocab_dict,config.MURALI_MSVD_VOCAB_PATH)
+		utils.write_to_pickle(vocab_rev_dict,config.MURALI_MSVD_REVERSE_VOCAB_PATH)
 		print("Size of Vocabulary: "+str(len(vocab)))
 	return vocab, vid_caps_dict
 
@@ -146,12 +154,11 @@ def prepare_data_ids(vid_caps_path, ids_save_path):
 			data_ids.append(data_id)
 	utils.write_list_to_file(ids_save_path,data_ids)
 
+
 if __name__ == '__main__':
 	print("generating vocab for train data...")
-	train_num = 1280
-	test_num = 384
-	vocab, _ = gen_vocab(train_num,"train")
-	_, _ = gen_vocab(test_num,"test")
+	vocab, _ = gen_vocab(config.MURALI_TRAIN_VIDS,"train")
+	# _, _ = gen_vocab(test_num,"test")
 	# print("generating train data vid+seq ids...")
 	# prepare_data_ids(config.MSVD_VID_CAPS_TRAIN_PATH, config.MSVD_DATA_IDS_TRAIN_PATH)
 	# print("generating val data vid+seq ids...")
