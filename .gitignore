@@ -107,14 +107,10 @@ venv.bak/
 
 hLSTMat/
 Extra/
-
-Data/MSR-VTT/*
-Data/MSVD/*
-!Data/MSVD/MSVD_corpus.csv
-!Data/MSVD/present_vid_ids.txt
-
+Data/
 Papers/
 Results/
+Code/coco
 Code/graph_cost
 Code/rough.py
 Code/optimizer.py
