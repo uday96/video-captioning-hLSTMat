@@ -25,7 +25,7 @@ class Movie2Caption(object):
         self.load_data()
     
     def get_video_features(self, vid_id):
-        if self.cnn_name in ['ResNet50', 'ResNet152', 'InceptionV3', 'VGG19']:
+        if self.cnn_name in ['ResNet50', 'ResNet152', 'InceptionV3', 'VGG19', 'MURALI']:
             feat = np.load(self.feats_dir+vid_id+'.npy')
         else:
             raise NotImplementedError()
@@ -89,9 +89,9 @@ class Movie2Caption(object):
         utils.shuffle_array(self.train_data_ids)
         utils.shuffle_array(self.val_data_ids)
         utils.shuffle_array(self.test_data_ids)
-        # self.train_data_ids = self.train_data_ids[:1]   # ONLY FOR DEBUG - REMOVE
-        # self.val_data_ids = self.val_data_ids[:1]
-        # self.test_data_ids = self.test_data_ids[:1]
+        self.train_data_ids = self.train_data_ids[:1]   # ONLY FOR DEBUG - REMOVE
+        self.val_data_ids = self.val_data_ids[:1]
+        self.test_data_ids = self.test_data_ids[:1]
         self.train_caps = utils.read_from_json(self.train_caps_path)
         self.val_caps = utils.read_from_json(self.val_caps_path)
         self.test_caps = utils.read_from_json(self.test_caps_path)
@@ -100,6 +100,8 @@ class Movie2Caption(object):
         self.vocab_size = len(self.vocab)
         if self.cnn_name in ['ResNet50', 'ResNet152', 'InceptionV3']:
             self.ctx_dim = 2048
+        elif self.cnn_name in ['MURALI']:
+            self.ctx_dim = 1024
         elif self.cnn_name in ['VGG19']:
             self.ctx_dim = 512
         else:
@@ -177,6 +179,39 @@ def test_data_engine():
         i += 1
         ids = [engine.train_data_ids[index] for index in idx]
         x, mask, ctx, ctx_mask = prepare_data(engine, ids, "train")
+        print x.shape, ctx.shape
+        print('seen %d minibatches, used time %.2f '%(i,time.time()-t0))
+        if i == 10:
+            break
+    print('used time %.2f'%(time.time()-t))
+
+def test_data_engine_murali():
+    # from sklearn.cross_validation import KFold
+    dataset_name = 'MSVD'
+    cnn_name = 'MURALI'
+    train_data_ids_path = config.MURALI_MSVD_DATA_IDS_TRAIN_PATH
+    val_data_ids_path = config.MURALI_MSVD_DATA_IDS_TEST_PATH
+    test_data_ids_path = config.MURALI_MSVD_DATA_IDS_TEST_PATH
+    vocab_path = config.MURALI_MSVD_VOCAB_PATH
+    reverse_vocab_path = config.MURALI_MSVD_REVERSE_VOCAB_PATH
+    mb_size_train = 64
+    mb_size_test = 128
+    maxlen_caption = 30
+    train_caps_path = config.MURALI_MSVD_VID_CAPS_TRAIN_PATH
+    val_caps_path = config.MURALI_MSVD_VID_CAPS_TEST_PATH
+    test_caps_path = config.MURALI_MSVD_VID_CAPS_TEST_PATH
+    feats_dir = config.MURALI_MSVD_FEATS_DIR
+    engine = Movie2Caption(dataset_name,cnn_name,train_data_ids_path, val_data_ids_path, test_data_ids_path,
+                vocab_path, reverse_vocab_path, mb_size_train, mb_size_test, maxlen_caption,
+                train_caps_path, val_caps_path, test_caps_path, feats_dir)
+    i = 0
+    t = time.time()
+    for idx in engine.kf_train:
+        t0 = time.time()
+        i += 1
+        ids = [engine.train_data_ids[index] for index in idx]
+        x, mask, ctx, ctx_mask = prepare_data(engine, ids, "train")
+        print x.shape, ctx.shape
         print('seen %d minibatches, used time %.2f '%(i,time.time()-t0))
         if i == 10:
             break
@@ -184,3 +219,4 @@ def test_data_engine():
 
 if __name__ == '__main__':
     test_data_engine()
+    test_data_engine_murali()

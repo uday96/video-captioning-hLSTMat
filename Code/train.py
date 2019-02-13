@@ -149,6 +149,7 @@ def train(model_options,
     with tf.control_dependencies(UPDATE_OPS):
         # optimizer = tf.train.AdadeltaOptimizer(learning_rate=1.0, rho=0.95, epsilon=1e-06).minimize(loss=COST, var_list=wrt)
         optimizer = tf.train.AdadeltaOptimizer(learning_rate=1.0, rho=0.95, epsilon=1e-06)
+        # optimizer = tf.train.AdamOptimizer()
         gradients, variables = zip(*optimizer.compute_gradients(loss=COST, var_list=wrt))
         gradients, _ = tf.clip_by_global_norm(gradients, clip_c)
         capped_grads_and_vars = zip(gradients, variables)
@@ -283,12 +284,12 @@ def train(model_options,
                     ctx_s = ctx     # (m,28,2048)
                     ctx_mask_s = ctx_mask   # (m,28)
                     model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
-                    print '------------- sampling from valid ----------'
-                    idx = engine.kf_val[np.random.randint(1, len(engine.kf_val) - 1)]
-                    tags = [engine.val_data_ids[index] for index in idx]
-                    x_s, mask_s, ctx_s, mask_ctx_s = data_engine.prepare_data(engine, tags,"val")
-                    model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
-                    print ""
+                    # print '------------- sampling from valid ----------'
+                    # idx = engine.kf_val[np.random.randint(1, len(engine.kf_val) - 1)]
+                    # tags = [engine.val_data_ids[index] for index in idx]
+                    # x_s, mask_s, ctx_s, mask_ctx_s = data_engine.prepare_data(engine, tags,"val")
+                    # model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
+                    # print ""
 
                 if validFreq != -1 and np.mod(uidx, validFreq) == 0:
                     t0_valid = time.time()
@@ -490,8 +491,10 @@ def train_util(params):
         model_config_old['debug'] = params['debug']
         params = model_config_old
         feats_dir = params['feats_dir']
-    else:
+    elif params['cnn_name']!="MURALI":
         feats_dir = params['feats_dir']+params['cnn_name']+"/"
+    else:
+        feats_dir = params['feats_dir']
     print('feats dir : '+feats_dir)
     params['feats_dir'] = feats_dir
 
