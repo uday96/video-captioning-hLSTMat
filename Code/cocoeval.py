@@ -8,7 +8,7 @@ from coco.pycocoevalcap.tokenizer.ptbtokenizer import PTBTokenizer
 
 class COCOScorer(object):
     def __init__(self):
-        print 'init COCO-EVAL scorer'
+        print('init COCO-EVAL scorer')
             
     def score(self, GT, RES, IDs):
         self.eval = {}
@@ -18,7 +18,7 @@ class COCOScorer(object):
         for ID in IDs:
             gts[ID] = GT[ID]
             res[ID] = RES[ID]
-        print 'tokenization...'
+        print('tokenization...')
         tokenizer = PTBTokenizer()
         gts  = tokenizer.tokenize(gts)
         res = tokenizer.tokenize(res)
@@ -26,7 +26,7 @@ class COCOScorer(object):
         # =================================================
         # Set up scorers
         # =================================================
-        print 'setting up scorers...'
+        print('setting up scorers...')
         scorers = [
             (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"]),
             (Meteor(),"METEOR"),
@@ -39,20 +39,20 @@ class COCOScorer(object):
         # =================================================
         eval = {}
         for scorer, method in scorers:
-            print 'computing %s score...'%(scorer.method())
+            print('computing %s score...'%(scorer.method()))
             score, scores = scorer.compute_score(gts, res)
             if type(method) == list:
                 for sc, scs, m in zip(score, scores, method):
                     self.setEval(sc, m)
                     self.setImgToEvalImgs(scs, IDs, m)
-                    print "%s: %0.3f"%(m, sc)
+                    print("%s: %0.3f"%(m, sc))
             else:
                 self.setEval(score, method)
                 self.setImgToEvalImgs(scores, IDs, method)
-                print "%s: %0.3f"%(method, score)
+                print("%s: %0.3f"%(method, score))
                 
         for metric, score in self.eval.items():
-            print '%s: %.3f'%(metric, score)
+            print('%s: %.3f'%(metric, score))
         return self.eval
     
     def setEval(self, score, method):
@@ -75,7 +75,7 @@ def score(ref, sample):
     ]
     final_scores = {}
     for scorer, method in scorers:
-        print 'computing %s score with COCO-EVAL...'%(scorer.method())
+        print('computing %s score with COCO-EVAL...'%(scorer.method()))
         score, scores = scorer.compute_score(ref, sample)
         if type(score) == list:
             for m, s in zip(method, score):

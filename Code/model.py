@@ -127,9 +127,9 @@ class Model(object):
         init_state = [bo_init_state, to_init_state]
         init_memory = [bo_init_memory, to_init_memory]
 
-        print 'building f_init...',
+        print('building f_init...',)
         f_init = [ctx0] + init_state + init_memory
-        print 'done'
+        print('done')
 
         init_state = [bo_init_state_sampler, to_init_state_sampler]
         init_memory = [bo_init_memory_sampler, to_init_memory_sampler]
@@ -185,9 +185,9 @@ class Model(object):
         next_sample_shape = tf.shape(next_sample)
         next_sample = tf.reshape(next_sample,[next_sample_shape[0]])
         # next word probability
-        print 'building f_next...',
+        print('building f_next...',)
         f_next = [next_probs, next_sample] + next_state + next_memory
-        print 'done'
+        print('done')
         return f_init, f_next
 
     def gen_sample(self, sess, tfparams, f_init, f_next, ctx0, ctx_mask, options,
@@ -376,7 +376,7 @@ class Model(object):
                 sys.stdout.write('\rComputing LL on %d/%d examples' % (
                     n_done, n_samples))
                 sys.stdout.flush()
-        print ""
+        print("")
         probs = utils.flatten_list_of_list(probs)
         NLL = utils.flatten_list_of_list(NLL)
         L = utils.flatten_list_of_list(L)
@@ -400,22 +400,22 @@ class Model(object):
                 sample = sample[best_one]
             else:
                 sample = sample
-            print 'Truth ', jj, ': ',
+            print('Truth ', jj, ': ',)
             for vv in x[:, jj]:
                 if vv == 0:
                     break
                 if vv in engine.reverse_vocab:
-                    print engine.reverse_vocab[vv],
+                    print(engine.reverse_vocab[vv],)
                 else:
-                    print 'UNK',
-            print ""
+                    print('UNK',)
+            print("")
             for kk, ss in enumerate([sample]):
-                print 'Sample (', jj, ') ', ': ',
+                print('Sample (', jj, ') ', ': ',)
                 for vv in ss:
                     if vv == 0:
                         break
                     if vv in engine.reverse_vocab:
-                        print engine.reverse_vocab[vv],
+                        print(engine.reverse_vocab[vv],)
                     else:
-                        print 'UNK',
-            print ""
+                        print('UNK',)
+            print("")

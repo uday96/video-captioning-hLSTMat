@@ -117,7 +117,7 @@ def prepare_data(engine, IDs, mode="train"):
     seqs = []
     feat_list = []
     for i, ID in enumerate(IDs):
-        #print 'processed %d/%d caps'%(i,len(IDs))
+        #print('processed %d/%d caps'%(i,len(IDs)))
         vidID, capID = ID.split('|')
         feat = engine.get_video_features(vidID)
         feat_list.append(feat)
@@ -179,7 +179,7 @@ def test_data_engine():
         i += 1
         ids = [engine.train_data_ids[index] for index in idx]
         x, mask, ctx, ctx_mask = prepare_data(engine, ids, "train")
-        print x.shape, ctx.shape
+        print(x.shape, ctx.shape)
         print('seen %d minibatches, used time %.2f '%(i,time.time()-t0))
         if i == 10:
             break
@@ -211,7 +211,7 @@ def test_data_engine_murali():
         i += 1
         ids = [engine.train_data_ids[index] for index in idx]
         x, mask, ctx, ctx_mask = prepare_data(engine, ids, "train")
-        print x.shape, ctx.shape
+        print(x.shape, ctx.shape)
         print('seen %d minibatches, used time %.2f '%(i,time.time()-t0))
         if i == 10:
             break
