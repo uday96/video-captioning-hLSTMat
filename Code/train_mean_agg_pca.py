@@ -2,12 +2,11 @@ import argparse
 import logging
 import utils, config
 import time
-# from model import Model
-from model_mean_agg import Model
-import data_engine
+from model_mean_agg_pca import Model
+import data_engine_mean_agg_pca as data_engine
 import tensorflow as tf
 import numpy as np
-import metrics
+import metrics_mean_agg_pca as metrics
 
 def train(model_options,
         dataset_name = 'MSVD',
@@ -76,7 +75,7 @@ def train(model_options,
 
     # set test values, for debugging
     idx = engine.kf_train[0]
-    x_tv, mask_tv, ctx_tv, ctx_mask_tv = data_engine.prepare_data(engine, [engine.train_data_ids[index] for index in idx], mode="train")
+    x_tv, mask_tv, ctx_tv, ctx_mask_tv, ctx_pca_tv = data_engine.prepare_data(engine, [engine.train_data_ids[index] for index in idx], mode="train")
 
     print 'init params'
     t0 = time.time()
@@ -88,9 +87,11 @@ def train(model_options,
     # context: #samples x #annotations x dim
     CTX = tf.placeholder(tf.float32, shape=(None, ctx_frames, ctx_dim), name='ctx')
     CTX_MASK = tf.placeholder(tf.float32, shape=(None, ctx_frames), name='ctx_mask')
+    CTX_PCA = tf.placeholder(tf.float32, shape=(None, lstm_dim), name='ctx_pca')
 
     CTX_SAMPLER = tf.placeholder(tf.float32, shape=(ctx_frames, ctx_dim), name='ctx_sampler')
     CTX_MASK_SAMPLER = tf.placeholder(tf.float32, shape=(ctx_frames), name='ctx_mask_sampler')
+    CTX_PCA_SAMPLER = tf.placeholder(tf.float32, shape=(lstm_dim), name='ctx_pca_sampler')
     X_SAMPLER = tf.placeholder(tf.int32, shape=(None,), name='x_sampler')   # DOUBT 1 or None ?
     BO_INIT_STATE_SAMPLER = tf.placeholder(tf.float32, shape=(None,lstm_dim), name='bo_init_state_sampler')
     TO_INIT_STATE_SAMPLER = tf.placeholder(tf.float32, shape=(None,lstm_dim), name='to_init_state_sampler')
@@ -101,13 +102,13 @@ def train(model_options,
     print 'buliding model'
     tfparams = utils.init_tfparams(params)
 
-    use_noise, COST, extra = model.build_model(tfparams, model_options, X, MASK, CTX, CTX_MASK)
+    use_noise, COST, extra = model.build_model(tfparams, model_options, X, MASK, CTX, CTX_MASK, CTX_PCA)
     ALPHAS = extra[1]   # (t,64,28)
     BETAS = extra[2]    # (t,64)
 
     print 'buliding sampler'
     f_init, f_next = model.build_sampler(tfparams, model_options, use_noise,
-                                CTX_SAMPLER, CTX_MASK_SAMPLER, X_SAMPLER, BO_INIT_STATE_SAMPLER,
+                                CTX_SAMPLER, CTX_MASK_SAMPLER, CTX_PCA_SAMPLER, X_SAMPLER, BO_INIT_STATE_SAMPLER,
                                 TO_INIT_STATE_SAMPLER, BO_INIT_MEMORY_SAMPLER, TO_INIT_MEMORY_SAMPLER)
 
     print 'building f_log_probs'
@@ -212,7 +213,7 @@ def train(model_options,
                 sess.run(tf.assign(use_noise, True))
 
                 pd_start = time.time()
-                x, mask, ctx, ctx_mask = data_engine.prepare_data(engine, tags, mode="train")
+                x, mask, ctx, ctx_mask, ctx_pca = data_engine.prepare_data(engine, tags, mode="train")
                 pd_duration = time.time() - pd_start
                 if x is None:
                     print 'Minibatch with zero sample under length ', maxlen
@@ -223,6 +224,7 @@ def train(model_options,
                                         X: x,
                                         MASK: mask,
                                         CTX: ctx,
+                                        CTX_PCA: ctx_pca,
                                         CTX_MASK: ctx_mask})
 
                 ud_start = time.time()
@@ -230,6 +232,7 @@ def train(model_options,
                                         X: x,
                                         MASK: mask,
                                         CTX: ctx,
+                                        CTX_PCA: ctx_pca,
                                         CTX_MASK: ctx_mask})
                 ud_duration = time.time() - ud_start
 
@@ -256,6 +259,7 @@ def train(model_options,
                                             X: x,
                                             MASK: mask,
                                             CTX: ctx,
+                                            CTX_PCA: ctx_pca,
                                             CTX_MASK: ctx_mask})
                     counts = mask.sum(0)
                     betas_mean = (betas * mask).sum(0) / counts
@@ -284,13 +288,14 @@ def train(model_options,
                     mask_s = mask   # (t,m)
                     ctx_s = ctx     # (m,28,2048)
                     ctx_mask_s = ctx_mask   # (m,28)
-                    model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
-                    print '------------- sampling from valid ----------'
-                    idx = engine.kf_val[np.random.randint(1, len(engine.kf_val) - 1)]
-                    tags = [engine.val_data_ids[index] for index in idx]
-                    x_s, mask_s, ctx_s, mask_ctx_s = data_engine.prepare_data(engine, tags,"val")
-                    model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s)
-                    print ""
+                    ctx_pca_s = ctx_pca
+                    model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s, ctx_pca_s)
+                    # print '------------- sampling from valid ----------'
+                    # idx = engine.kf_val[np.random.randint(1, len(engine.kf_val) - 1)]
+                    # tags = [engine.val_data_ids[index] for index in idx]
+                    # x_s, mask_s, ctx_s, mask_ctx_s, ctx_pca_s = data_engine.prepare_data(engine, tags,"val")
+                    # model.sample_execute(sess, engine, model_options, tfparams, f_init, f_next, x_s, ctx_s, ctx_mask_s, ctx_pca_s)
+                    # print ""
 
                 if validFreq != -1 and np.mod(uidx, validFreq) == 0:
                     t0_valid = time.time()
@@ -298,6 +303,7 @@ def train(model_options,
                                             X: x,
                                             MASK: mask,
                                             CTX: ctx,
+                                            CTX_PCA: ctx_pca,
                                             CTX_MASK: ctx_mask})
                     ratio = alphas.min(-1).mean()/(alphas.max(-1)).mean()
                     alphas_ratio.append(ratio)

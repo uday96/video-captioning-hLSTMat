@@ -150,16 +150,20 @@ class Layers(object):
         # bias to LSTM
         params[_p(prefix, 'b')] = np.zeros((4*dim,)).astype('float32')      # bo_lstm_b:(2048,)
         # attention: context -> hidden
-        Wc_att = norm_weight(dimctx, ortho=False)
+        # Wc_att = norm_weight(dimctx, ortho=False)
+        Wc_att = norm_weight(dimctx, dim, ortho=False)
         params[_p(prefix, 'Wc_att')] = Wc_att    # bo_lstm_Wc_att:(2048,2048)
         # attention: LSTM -> hidden
-        Wd_att = norm_weight(dim, dimctx)
+        # Wd_att = norm_weight(dim, dimctx)
+        Wd_att = norm_weight(dim, dim)
         params[_p(prefix, 'Wd_att')] = Wd_att   # bo_lstm_Wd_att:(512,2048)
         # attention: hidden bias
-        b_att = np.zeros((dimctx,)).astype('float32')
+        # b_att = np.zeros((dimctx,)).astype('float32')
+        b_att = np.zeros((dim,)).astype('float32')
         params[_p(prefix, 'b_att')] = b_att     # bo_lstm_b_att:(2048,)
         # attention:
-        U_att = norm_weight(dimctx, 1)
+        # U_att = norm_weight(dimctx, 1)
+        U_att = norm_weight(dim, 28)
         params[_p(prefix, 'U_att')] = U_att      # bo_lstm_U_att:(2048,1)
         c_att = np.zeros((1,)).astype('float32')
         params[_p(prefix, 'c_att')] = c_att  # bo_lstm_c_att:(1,)
@@ -172,7 +176,7 @@ class Layers(object):
         return params
 
     def lstm_cond_layer(self, tfparams, state_below, options, prefix='lstm',
-                        mask=None, context=None, one_step=False,
+                        mask=None, context=None, context_mean=None, one_step=False,
                         init_memory=None, init_state=None,
                         trng=None, use_noise=None, mode=None,
                         **kwargs):
@@ -208,7 +212,8 @@ class Layers(object):
 
         # projected context
         with tf.name_scope("pctx_"):
-            pctx_ = batch_matmul(context, tfparams[_p(prefix, 'Wc_att')]) + tfparams[_p(prefix, 'b_att')]    # (64,28,2048)*(2048,2048)+(2048,) = (64,28,2048) or (1,28,2048) in sampling
+            # pctx_ = batch_matmul(context, tfparams[_p(prefix, 'Wc_att')]) + tfparams[_p(prefix, 'b_att')]    # (64,28,2048)*(2048,2048)+(2048,) = (64,28,2048) or (1,28,2048) in sampling
+            pctx_ = batch_matmul(context_mean, tfparams[_p(prefix, 'Wc_att')]) + tfparams[_p(prefix, 'b_att')]    # (64,2048)*(2048,512)+(512,) = (64,512) or (1,512) in sampling
         # projected x
         with tf.name_scope("state_below"):
             state_below = batch_matmul(state_below, tfparams[_p(prefix, 'W')]) + tfparams[_p(prefix, 'b')]    # (19,64,512)*(512,2048)+(2048) = (19,64,2048) or (m,2048) in sampling
@@ -223,8 +228,11 @@ class Layers(object):
         U = tfparams[_p(prefix, 'U')]    # (512,2048)
 
         pctx_shape = tf.shape(pctx_, name="pctx_shape")
-        init_alpha = tf.zeros(shape=(n_samples, pctx_shape[1]), dtype=tf.float32, name="init_alpha_fill")
-        init_ctx = tf.zeros(shape=(n_samples, U_att.shape[0]), dtype=tf.float32, name="init_ctx_fill")
+        context_shape = tf.shape(context, name="pctx_shape")
+        # init_alpha = tf.zeros(shape=(n_samples, pctx_shape[1]), dtype=tf.float32, name="init_alpha_fill")
+        init_alpha = tf.zeros(shape=(n_samples, context_shape[1]), dtype=tf.float32, name="init_alpha_fill")
+        # init_ctx = tf.zeros(shape=(n_samples, U_att.shape[0]), dtype=tf.float32, name="init_ctx_fill")
+        init_ctx = tf.zeros(shape=(n_samples, context_shape[2]), dtype=tf.float32, name="init_ctx_fill")
         init_beta = tf.zeros(shape=(n_samples,), dtype=tf.float32, name="init_beta_fill")
 
         def _slice(_x, n, dim):
@@ -257,23 +265,24 @@ class Layers(object):
             h = o * tf.tanh(c)  # (m,512)*(m,512) = (m,512) in sampling
             h = m_[:, None] * h + (1. - m_)[:, None] * h_
 
-            print "h shape: ", h.shape
-            print "c shape: ", c.shape
+            # print "h shape: ", h.shape
+            # print "c shape: ", c.shape
             # attention
-            pstate_ = tf.matmul(h, Wd_att) # shape = (64,512)*(512,2048) = (64,2048) or (m,2048) in sampling
-            print "pstate_ shape: ", pstate_.shape
-            pctx_t = pctx_ + pstate_[:, None, :] # shape = (64,28,2048)+(64,?,2048) = (64,28,2048)  # DOUBT pctx_ += ?? VERIFIED
+            pstate_ = tf.matmul(h, Wd_att) # shape = (64,512)*(512,512) = (64,512) or (m,512) in sampling
+            # print "pstate_ shape: ", pstate_.shape
+            # pctx_t = pctx_ + pstate_[:, None, :] # shape = (64,28,2048)+(64,?,2048) = (64,28,2048)  # DOUBT pctx_ += ?? VERIFIED
+            pctx_t = pctx_ + pstate_ # shape = (64,512)+(64,512) = (64,512)
                 #   (1,28,2048) + (m,?,2048) = (m,28,2048)
             pctx_t = tanh(pctx_t)
-            print "pctx_t shape: ", pctx_t.shape
-            alpha = batch_matmul(pctx_t, U_att) + c_att    # (64,28,2048)*(2048,1) + (1,) = (64,28,1) or (m,28,1) in sampling
-            print "alpha shape: ", alpha.shape
+            # print "pctx_t shape: ", pctx_t.shape
+            alpha = tf.expand_dims(batch_matmul(pctx_t, U_att),-1) + c_att    # ((64,512)*(512,28),1) + (1,) = (64,28,1) or (m,28,1) in sampling
+            # print "alpha shape: ", alpha.shape
             alpha_pre = alpha
             alpha_shape = tf.shape(alpha)
             alpha = tf.nn.softmax(tf.reshape(alpha,[alpha_shape[0], alpha_shape[1]]))  # softmax (64,28) or (m,28) in sampling
-            print "alpha shape: ", alpha.shape
+            # print "alpha shape: ", alpha.shape
             ctx_ = tf.reduce_sum((context * alpha[:, :, None]), 1)  # (m, ctx_dim)     # (64*28*2048)*(64,28,1).sum(1) = (64,2048) or (m,2048) in sampling
-            print "ctx_ shape: ", ctx_.shape
+            # print "ctx_ shape: ", ctx_.shape
             if options['selector']:
                 sel_ = tf.sigmoid(tf.matmul(h_, W_sel) + b_sel)   # (64,512)*(512,1)+(scalar) = (64,1) or (m,1) in sampling
                 sel_shape = tf.shape(sel_)
