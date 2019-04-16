@@ -66,7 +66,8 @@ MURALI_MSVD_DATA_IDS_TEST_PATH = "../Data/MSVD/Murali_Dataset/Processed_Data/dat
 
 MURALI_MSVD_ENCODINGS_TEST_PATH = "../Data/MSVD/Murali_Dataset/test_video_encoding"
 
-SAVE_DIR_PATH = "../Results/Murali_debug/"
+# SAVE_DIR_PATH = "../Results/Exp_Mean_agg_pca_ResNet52_100epoch/"
+SAVE_DIR_PATH = "../Results/Debug/"
 
 params = {
 	'dataset_name' : 'MSVD',
@@ -104,7 +105,7 @@ params = {
     'prev2out' : True,
     # in the unit of minibatches
     'dispFreq' : 10,    # 10
-    'validFreq' : 2000,    # 2000
+    'validFreq' : 50,    # 2000
     'saveFreq' : -1, # this is disabled, now use sampleFreq instead
     'sampleFreq' : 100,   # 100
     'verbose' : True,

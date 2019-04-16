@@ -31,6 +31,13 @@ class Movie2Caption(object):
             raise NotImplementedError()
         return feat.astype('float32')
 
+    def get_video_pca_features(self, vid_id):
+        if self.cnn_name in ['ResNet152']:
+            feat = np.load(self.feats_dir[:-1]+"_pca512/"+vid_id+'.npy')
+        else:
+            raise NotImplementedError()
+        return feat.astype('float32')
+
     def get_cap_tokens(self, vid_id, cap_id, mode):
         if mode == "train":
             vid_caps = self.train_caps
@@ -46,6 +53,7 @@ class Movie2Caption(object):
         # assume one-to-one mapping between ids and features
         feats = []
         feats_mask = []
+        feats_pca = []
         if whichset == 'val':
             ids = self.val_ids
         elif whichset == 'test':
@@ -57,7 +65,9 @@ class Movie2Caption(object):
             feats.append(feat)
             feat_mask = self.get_ctx_mask(feat)
             feats_mask.append(feat_mask)
-        return feats, feats_mask
+            feat_pca = self.get_video_pca_features(vidID)
+            feats_pca.append(feat_pca)
+        return feats, feats_mask, feats_pca
 
     def get_ctx_mask(self, ctx):
         if ctx.ndim == 3:
@@ -89,9 +99,9 @@ class Movie2Caption(object):
         utils.shuffle_array(self.train_data_ids)
         utils.shuffle_array(self.val_data_ids)
         utils.shuffle_array(self.test_data_ids)
-        # self.train_data_ids = self.train_data_ids[:1]   # ONLY FOR DEBUG - REMOVE
-        # self.val_data_ids = self.val_data_ids[:1]
-        # self.test_data_ids = self.test_data_ids[:1]
+        self.train_data_ids = self.train_data_ids[:1]   # ONLY FOR DEBUG - REMOVE
+        self.val_data_ids = self.val_data_ids[:1]
+        self.test_data_ids = self.test_data_ids[:1]
         self.train_caps = utils.read_from_json(self.train_caps_path)
         self.val_caps = utils.read_from_json(self.val_caps_path)
         self.test_caps = utils.read_from_json(self.test_caps_path)
@@ -116,11 +126,14 @@ class Movie2Caption(object):
 def prepare_data(engine, IDs, mode="train"):
     seqs = []
     feat_list = []
+    feat_pca_list = []
     for i, ID in enumerate(IDs):
-        #print('processed %d/%d caps'%(i,len(IDs)))
+        #print 'processed %d/%d caps'%(i,len(IDs))
         vidID, capID = ID.split('|')
         feat = engine.get_video_features(vidID)
+        feat_pca = engine.get_video_pca_features(vidID)
         feat_list.append(feat)
+        feat_pca_list.append(feat_pca)
         words = engine.get_cap_tokens(vidID, int(capID), mode)
         seqs.append([engine.vocab[w]
                      if w in engine.vocab and engine.vocab[w] < engine.vocab_size else 1 for w in words])   # 1 => UNK
@@ -128,21 +141,25 @@ def prepare_data(engine, IDs, mode="train"):
     if engine.maxlen_caption != None:
         new_seqs = []
         new_feat_list = []
+        new_feat_pca_list = []
         new_lengths = []
         new_caps = []
-        for l, s, y, c in zip(lengths, seqs, feat_list, IDs):
+        for l, s, y, ypca, c in zip(lengths, seqs, feat_list, feat_pca_list, IDs):
             # sequences that have length >= maxlen_caption will be thrown away 
             if l < engine.maxlen_caption:
                 new_seqs.append(s)
                 new_feat_list.append(y)
+                new_feat_pca_list.append(ypca)
                 new_lengths.append(l)
                 new_caps.append(c)
         lengths = new_lengths
         feat_list = new_feat_list
+        feat_pca_list = new_feat_pca_list
         seqs = new_seqs
         if len(lengths) < 1:
             return None, None, None, None
     y = np.asarray(feat_list, dtype='float32')   # shape (batch_size,n_frames=28,ctx_dim=2048)
+    ypca = np.asarray(feat_pca_list, dtype='float32')
     y_mask = engine.get_ctx_mask(y)
     n_samples = len(seqs)
     maxlen = np.max(lengths)+1
@@ -151,7 +168,7 @@ def prepare_data(engine, IDs, mode="train"):
     for idx, s in enumerate(seqs):
         x[:lengths[idx],idx] = s
         x_mask[:lengths[idx]+1,idx] = 1.
-    return x, x_mask, y, y_mask
+    return x, x_mask, y, y_mask, ypca
     
 def test_data_engine():
     # from sklearn.cross_validation import KFold
@@ -178,8 +195,8 @@ def test_data_engine():
         t0 = time.time()
         i += 1
         ids = [engine.train_data_ids[index] for index in idx]
-        x, mask, ctx, ctx_mask = prepare_data(engine, ids, "train")
-        print(x.shape, ctx.shape)
+        x, mask, ctx, ctx_mask, ctx_pca = prepare_data(engine, ids, "train")
+        print x.shape, ctx.shape, ctx_pca.shape
         print('seen %d minibatches, used time %.2f '%(i,time.time()-t0))
         if i == 10:
             break
@@ -211,7 +228,7 @@ def test_data_engine_murali():
         i += 1
         ids = [engine.train_data_ids[index] for index in idx]
         x, mask, ctx, ctx_mask = prepare_data(engine, ids, "train")
-        print(x.shape, ctx.shape)
+        print x.shape, ctx.shape
         print('seen %d minibatches, used time %.2f '%(i,time.time()-t0))
         if i == 10:
             break
@@ -219,4 +236,4 @@ def test_data_engine_murali():
 
 if __name__ == '__main__':
     test_data_engine()
-    test_data_engine_murali()
+    # test_data_engine_murali()
