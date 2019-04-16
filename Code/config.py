@@ -77,8 +77,8 @@ params = {
     'test_data_ids_path' : MSVD_DATA_IDS_TEST_PATH,
     'vocab_path' : MSVD_VOCAB_PATH,
     'reverse_vocab_path' : MSVD_REVERSE_VOCAB_PATH,
-    'mb_size_train' : 64, # 64
-    'mb_size_test' : 128, # 128
+    'mb_size_train' : 1, # 64
+    'mb_size_test' : 1, # 128
     'train_caps_path' : MSVD_VID_CAPS_TRAIN_PATH,
     'val_caps_path' : MSVD_VID_CAPS_VAL_PATH,
     'test_caps_path' : MSVD_VID_CAPS_TEST_PATH,
@@ -88,7 +88,7 @@ params = {
     'ctx_dim' : 2048,	# video cnn feature dimension
     'lstm_dim' : 512,	# lstm unit size
     'patience' : 20,
-    'max_epochs' : 50, # 500
+    'max_epochs' : 100, # 500
     'decay_c' : 1e-4,
     'alpha_entropy_r' : 0.,
     'alpha_c' : 0.70602, # 0.70602
@@ -97,7 +97,7 @@ params = {
     'vocab_size' : 20000, # n_words
     'maxlen_caption' : 30,	# max length of the descprition
     'optimizer' : 'adadelta',
-    'batch_size' : 64, # 64	# for trees use 25
+    'batch_size' : 1, # 64	# for trees use 25
     'metric' : 'everything',	# set to perplexity on DVS # blue, meteor, or both
     'use_dropout' : True,   #True
     'selector' : True, # True
@@ -107,7 +107,7 @@ params = {
     'dispFreq' : 10,    # 10
     'validFreq' : 50,    # 2000
     'saveFreq' : -1, # this is disabled, now use sampleFreq instead
-    'sampleFreq' : 100,   # 100
+    'sampleFreq' : 10,   # 100
     'verbose' : True,
     'debug' : False,    # False
     'reload_model' : False, # False
