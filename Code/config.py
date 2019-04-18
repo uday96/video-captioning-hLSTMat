@@ -88,7 +88,7 @@ params = {
     'ctx_dim' : 2048,	# video cnn feature dimension
     'lstm_dim' : 512,	# lstm unit size
     'patience' : 20,
-    'max_epochs' : 100, # 500
+    'max_epochs' : 250, # 500
     'decay_c' : 1e-4,
     'alpha_entropy_r' : 0.,
     'alpha_c' : 0.70602, # 0.70602
@@ -105,7 +105,7 @@ params = {
     'prev2out' : True,
     # in the unit of minibatches
     'dispFreq' : 10,    # 10
-    'validFreq' : 50,    # 2000
+    'validFreq' : 2000,    # 2000
     'saveFreq' : -1, # this is disabled, now use sampleFreq instead
     'sampleFreq' : 10,   # 100
     'verbose' : True,
